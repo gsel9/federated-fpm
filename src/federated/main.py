@@ -9,13 +9,13 @@ from sksurv.datasets import load_whas500
 
 #from sklearn.base import BaseEstimator, TransformerMixin
 #from sklearn.metrics import confusion_matrix
-from sklearn.pipeline import Pipeline
+#from sklearn.pipeline import Pipeline
 #from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 #from sksurv.linear_model import CoxPHSurvivalAnalysis
 from splines import NaturalCubicSpline, knots
-from client import spawn_client 
+from client import create_client 
 from server import Server 
 
 
@@ -60,10 +60,10 @@ def spline_experiment(server, clients, epochs):
 	
 			client.fit_gamma()
 
-		weights = server.aggregate(clients)
+		gamma, beta = server.aggregate(clients)
 
 		for client in clients:
-			client.update_weights(weights)
+			client.update_weights(gamma, beta)
 
 
 def eval_spline_experiment(server, clients, delta, logtime):
@@ -97,7 +97,7 @@ def eval_spline_experiment(server, clients, delta, logtime):
 	Z = ncs.transform(knots_y, derivative=False)
 
 	plt.figure()
-	plt.plot((Z @ gamma).squeeze(), marker="o", linestyle="", label="aggregated")
+	plt.plot(knots_x, (Z @ gamma).squeeze(), marker="o", linestyle="", label="aggregated")
 	plt.plot(knots_x, knots_y, marker="o", linestyle="", label="knots")
 	plt.legend()
 	plt.savefig("./figures/knots_global.pdf")
@@ -107,29 +107,28 @@ def main():
 
 	learning_rate = 0.05
 
-	local_epochs = 50
-	global_epochs = 10
+	local_epochs = 40
+	global_epochs = 5
 
 	X, delta, logtime = data()
 
 	# distributed data 
 	idxs = distributed_data_idx(X.shape[0], 3)
 
-	# ERROR: server should recieve all gradients, not just weights?
-
 	server = Server()
 
 	clients = [
-		spawn_client(X[idxs[0]], delta[idxs[0]], logtime[idxs[0]], local_epochs, learning_rate),
-		spawn_client(X[idxs[1]], delta[idxs[1]], logtime[idxs[1]], local_epochs, learning_rate),
-		spawn_client(X[idxs[2]], delta[idxs[2]], logtime[idxs[2]], local_epochs, learning_rate)
+		create_client(X[idxs[0]], delta[idxs[0]], logtime[idxs[0]], local_epochs, learning_rate),
+		create_client(X[idxs[1]], delta[idxs[1]], logtime[idxs[1]], local_epochs, learning_rate),
+		create_client(X[idxs[2]], delta[idxs[2]], logtime[idxs[2]], local_epochs, learning_rate)
 	]
 
-	# NOTE: key is running enough local epochs 
-	spline_experiment(server, clients, global_epochs)
-	eval_spline_experiment(server, clients, delta, logtime)
+	# NOTE: key is running enough local epochs (40 local and 5 global)
+	#spline_experiment(server, clients, global_epochs)
+	#eval_spline_experiment(server, clients, delta, logtime)
 
-	#np.save(gamma_star, "gamma_star.npy")
+	#gamma_star, _ = server.aggregate(clients)
+	#np.save(gamma_star, "./results/gamma_star.npy")
 	
 	#beta_experiment()
 	#eval_beta_experiment()

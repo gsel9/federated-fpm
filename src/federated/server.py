@@ -20,7 +20,4 @@ class Server:
 			gammas.append(client.gamma)
 			betas.append(client.beta)
 		
-		weights_avg = [self.fed_avg(gammas), 
-					   self.fed_avg(betas)]
-		
-		return weights_avg
+		return self.fed_avg(gammas), self.fed_avg(betas)

@@ -4,7 +4,7 @@ import tensorflow as tf
 from splines import NaturalCubicSpline, knots
 
 
-def spawn_client(X, delta, logtime, n_epochs, learning_rate, seed=42):
+def create_client(X, delta, logtime, n_epochs, learning_rate, seed=42):
 
 	knots_x, knots_y = knots(logtime, delta)
 
@@ -108,8 +108,8 @@ class Client:
 
 		self.fit_beta()
 
-		return self 
+		return self
 
-	def update_weights(self, weights):
+	def update_weights(self, gamma, beta):
 
-		self.gamma, self.beta = weights
+		self.gamma, self.beta = gamma, beta
