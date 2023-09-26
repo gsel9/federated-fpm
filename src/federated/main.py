@@ -8,12 +8,14 @@ from sksurv.datasets import load_whas500
 #from scipy.interpolate import CubicSpline
 
 #from sklearn.base import BaseEstimator, TransformerMixin
-#from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 #from sklearn.pipeline import Pipeline
-#from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-#from sksurv.linear_model import CoxPHSurvivalAnalysis
+from sksurv.linear_model import CoxPHSurvivalAnalysis
+
+from centralised import centralised_benchmark
 from splines import NaturalCubicSpline, knots
 from client import create_client 
 from server import Server 
@@ -37,7 +39,7 @@ def data():
 	# HACK
 	to_keep = logtime > 0
 
-	return X[to_keep], delta[to_keep], logtime[to_keep]
+	return X[to_keep], y[to_keep], delta[to_keep], logtime[to_keep]
 
 
 def distributed_data_idx(n_samples, n_clients, seed=42):
@@ -60,10 +62,10 @@ def spline_experiment(server, clients, epochs):
 	
 			client.fit_gamma()
 
-		gamma, beta = server.aggregate(clients)
+		gamma, _ = server.aggregate(clients)
 
 		for client in clients:
-			client.update_weights(gamma, beta)
+			client.update_weights(gamma=gamma)
 
 
 def eval_spline_experiment(server, clients, delta, logtime):
@@ -103,14 +105,70 @@ def eval_spline_experiment(server, clients, delta, logtime):
 	plt.savefig("./figures/knots_global.pdf")
 
 
+def beta_experiment(server, clients, epochs):
+
+	for _ in range(epochs):
+		for i, client in enumerate(clients):
+	
+			client.fit_beta()
+
+		_, beta = server.aggregate(clients)
+
+		for client in clients:
+			client.update_weights(beta=beta)
+
+
+def eval_beta_experiment(server, clients, X, y, delta, logtime):
+
+	plt.figure()
+	plt.plot(clients[0].loss_beta, label="C3")
+	plt.plot(clients[1].loss_beta, label="C3")
+	plt.plot(clients[2].loss_beta, label="C3")
+	plt.legend()
+	plt.savefig("./figures/loss_beta.pdf")
+
+	_, beta_star = server.aggregate(clients)
+
+	# baseline predictor comparison
+	model = LogisticRegression()
+	model.fit(X, delta)
+
+	y_pred_lr = model.predict(X)
+	cmat_lr = confusion_matrix(delta, y_pred_lr)
+
+	model = CoxPHSurvivalAnalysis()
+	model.fit(X, y)
+
+	y_pred_ph = (model.predict(X).squeeze() > 0).astype(int)
+	cmat_ph = confusion_matrix(delta, y_pred_ph)
+
+	y_pred_fl = ((X @ beta_star).squeeze() > 0).astype(int)
+	cmat_fl = confusion_matrix(delta, y_pred_fl)
+
+	fig, axes = plt.subplots(ncols=3, figsize=(12, 6))
+	axes[0].set_title(label="LR")
+	axes[1].set_title(label="PH")
+	axes[2].set_title(label="FL")
+
+	display = ConfusionMatrixDisplay(cmat_lr)
+	display.plot(ax=axes[0], colorbar=False)
+	display = ConfusionMatrixDisplay(cmat_ph)
+	display.plot(ax=axes[1], colorbar=False)
+	display = ConfusionMatrixDisplay(cmat_fl)
+	display.plot(ax=axes[2], colorbar=False)
+
+	plt.savefig("./figures/cmats_beta.pdf")
+
+	# TODO: Compare beta and spline coefficients from centralised and FL models
+
+
 def main():
 
 	learning_rate = 0.05
-
 	local_epochs = 40
 	global_epochs = 5
 
-	X, delta, logtime = data()
+	X, y, delta, logtime = data()
 
 	# distributed data 
 	idxs = distributed_data_idx(X.shape[0], 3)
@@ -128,25 +186,32 @@ def main():
 	#eval_spline_experiment(server, clients, delta, logtime)
 
 	#gamma_star, _ = server.aggregate(clients)
-	#np.save(gamma_star, "./results/gamma_star.npy")
+	#np.save("./results/gamma_star.npy", gamma_star)
+
+	# TODO:
+	# - compare centralised and fl model spline and beta coefs 
+	# - try alternating opt again!!
+
+	#gamma_star = np.load("./results/gamma_star.npy")
+	#print(gamma_star)
+
+	for client in clients:
+
+		client.update_weights(gamma=gamma_star)
+		client.update_splines()
 	
-	#beta_experiment()
-	#eval_beta_experiment()
+	beta_experiment(server, clients, global_epochs)
+	eval_beta_experiment(server, clients, X, y, delta, logtime)
 
-	# TODO: 
-	# - plot individual loss values per client (single plot)
-	# - tune training parameters 
-	# - convergence criteria on gamma and beta? 
+	_, beta_star = server.aggregate(clients)
+	np.save("./results/beta_star.npy", beta_star)
 
-	#np.save(beta_star, "beta_star.npy")
+	#beta_star = np.load("./results/beta_star.npy")
+	#print(beta_star)
 
-	# baseline copmarison
-	#y_pred = ((X @ beta_star).squeeze() > 0).astype(int)
-	#confusion_matrix(delta, y_pred)
-	#model = CoxPHSurvivalAnalysis()
-	#model.fit(X, y)
-	#y_pred = (model.predict(X).squeeze() > 0).astype(int)
-	#confusion_matrix(delta, y_pred)
+	#gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime)
+	#print(gamma)
+	#print(beta)
 
 
 if __name__ == "__main__":

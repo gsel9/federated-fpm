@@ -39,6 +39,7 @@ class Client:
 		self.n_epochs = n_epochs
 		self.learning_rate = learning_rate
 
+		self.S, self.dS = None, None 
 		self.loss_beta, self.loss_gamma = [], []
 
 	def record_loss(self):
@@ -62,6 +63,7 @@ class Client:
 		loss_object = tf.keras.losses.MeanSquaredError()
 
 		for _ in range(self.n_epochs):
+
 		    optimizer.minimize(_loss_gamma, [gamma])
 		    self.loss_gamma.append(_loss_gamma().numpy())
 
@@ -88,8 +90,9 @@ class Client:
 		optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
 	
 		for _ in range(self.n_epochs):
+
 		    optimizer.minimize(_loss_beta, [beta])
-		    #print("Loss beta:", np.mean(_loss_beta().numpy()))
+		    self.loss_beta.append(np.mean(_loss_beta().numpy()))
 
 		self.beta = beta.numpy()
 
@@ -98,18 +101,24 @@ class Client:
 	def fit(self):
 
 		self.fit_gamma()
+		self.update_splines()
+		self.fit_beta()
+
+		return self
+
+	def update_weights(self, gamma=None, beta=None):
+
+		if gamma is not None:
+			self.gamma = gamma 
+
+		if beta is not None:
+			self.beta = beta 
+
+	def update_splines(self):
 
 		# update spline matrices 
 		self.S = self.Z_long @ self.gamma
 		self.dS = self.dZ @ self.gamma[1:]
 		
 		if np.min(self.dS) < 0:
-			assert False, "negative values in dS"
-
-		self.fit_beta()
-
-		return self
-
-	def update_weights(self, gamma, beta):
-
-		self.gamma, self.beta = gamma, beta
+			raise ValueError("Negative values in dS")
