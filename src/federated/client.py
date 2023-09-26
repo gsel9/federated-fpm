@@ -1,10 +1,18 @@
+import scipy as sp 
 import numpy as np 
 import tensorflow as tf 
+
+from sklearn.preprocessing import StandardScaler
 
 from splines import NaturalCubicSpline, knots
 
 
 def create_client(X, delta, logtime, n_epochs, learning_rate, seed=42):
+
+	print("Frac censored:", sum(delta) / delta.size)
+
+	scaler = StandardScaler()
+	X = scaler.fit_transform(X)
 
 	knots_x, knots_y = knots(logtime, delta)
 
@@ -70,7 +78,7 @@ class Client:
 		self.gamma = gamma.numpy()
 
 		return self 
-
+		
 	def fit_beta(self):
 
 		def _loss_beta():
@@ -90,7 +98,7 @@ class Client:
 		optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
 	
 		for _ in range(self.n_epochs):
-
+		
 		    optimizer.minimize(_loss_beta, [beta])
 		    self.loss_beta.append(np.mean(_loss_beta().numpy()))
 
@@ -101,6 +109,7 @@ class Client:
 	def fit(self):
 
 		self.fit_gamma()
+
 		self.update_splines()
 		self.fit_beta()
 

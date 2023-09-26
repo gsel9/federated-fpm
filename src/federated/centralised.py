@@ -1,11 +1,10 @@
+import scipy as sp 
 import numpy as np 
 import tensorflow as tf 
 
 from splines import NaturalCubicSpline, knots
 
 
-# TODO: Compare beta and spline coefficients from centralised and FL models
-# also, loss functions (and cmats?)
 def centralised_benchmark(X, delta, logtime, order=1, intercept=True, seed=42):
 
 	knots_x, knots_y = knots(logtime, delta)
@@ -42,7 +41,7 @@ def fit_gamma(gamma, Z, knots_y, epochs=200, order=1, intercept=True):
 
 	gamma = tf.Variable(gamma, dtype=tf.float32)
 
-	optimizer = tf.keras.optimizers.Adam(learning_rate=1)
+	optimizer = tf.keras.optimizers.Adam(learning_rate=0.05)
 	loss_object = tf.keras.losses.MeanSquaredError()
 
 	losses = []
@@ -70,7 +69,7 @@ def fit_beta(beta, X, S, dS, delta, epochs=200):
 	dS = tf.cast(dS, dtype=tf.float32)
 	delta = tf.cast(delta, dtype=tf.float32)
 
-	optimizer = tf.keras.optimizers.Adam(learning_rate=1)
+	optimizer = tf.keras.optimizers.Adam(learning_rate=0.05)
 
 	losses = []
 	for epoch in range(epochs):
