@@ -1,4 +1,5 @@
 import numpy as np 
+import tensorflow as tf 
 
 
 class Server:
@@ -10,9 +11,6 @@ class Server:
 		self.seed = seed
 
 		self.gamma, self.beta = None, None 
-
-		# TEMP 
-		optimizer = tf.keras.optimizers.Adam(learning_rate=0.05)
 
 	def fit_gamma(self):
 
@@ -32,48 +30,67 @@ class Server:
 			client.update_splines()
 
 	def fit_beta(self):
-		# TODO: sum the likelihood gradients and update the weights 
+
 		for epoch in range(self.epochs):
 
 			for i, client in enumerate(self.clients):
 				client.fit_beta()
 
-			_, self.beta = self.aggregate_gradients(self.clients)
-			#_, self.beta = self.aggregate_avg(self.clients)
+			_, self.beta = self.aggregate_avg(self.clients)
 
 			for client in self.clients:
 				client.update_weights(beta=self.beta)
+
+	def fit_gamma_gradients(self):
+
+		self.optimizer_gamma = tf.keras.optimizers.Adam(learning_rate=0.05)
+		gamma_variable = tf.Variable(self.clients[0].gamma)
+
+		for epoch in range(self.epochs):
+
+			gradients = 0
+			for i, client in enumerate(self.clients):
+				gradients += client.gamma_gradients(gamma_variable)
+
+			self.optimizer_gamma.apply_gradients([(gradients, gamma_variable)])
+
+		self.gamma = gamma_variable.numpy()
+
+		for client in self.clients:
+			client.update_weights(gamma=self.gamma)
+
+	def fit_beta_gradients(self, epochs=100):
+
+		beta_variable = tf.Variable(self.clients[0].beta)
+
+		for epoch in range(epochs):
+
+			#gradients = 0
+			dl_dbs, d2l_db2s = 0, 0
+			for i, client in enumerate(self.clients):
+				
+				#gradients += client.beta_gradients(beta_variable)
+				dl_db, d2l_db2 = client.beta_gradients(beta_variable)
+
+				dl_dbs += dl_db
+				d2l_db2s += d2l_db2
+
+			beta_variable = beta_variable - dl_dbs / (d2l_db2s)
+
+		self.beta = beta_variable.numpy()
 
 	@staticmethod
 	def fed_sum(weights):
 		return np.sum(weights, axis=0)
 
-	@staticmethod
-	def fed_avg(weights):
-		return np.mean(weights, axis=0)
-
-	def aggregate_gradients(self, clients):
-
-		gammas, betas = [], []
-
-		for client in clients:
-
-			gammas.append(client.gamma)
-			betas.append(client.beta)
-
-		# TODO: 
-		# - sum gradients 
-		# - sever does one step of gradient descent 
-		
-		return self.fed_sum(gammas), self.fed_sum(betas)
-	
 	def aggregate_avg(self, clients):
 
-		gammas, betas = [], []
+		agg_average = lambda values: np.mean(values, axis=0)
 
+		gammas, betas = [], []
 		for client in clients:
 
 			gammas.append(client.gamma)
 			betas.append(client.beta)
 		
-		return self.fed_avg(gammas), self.fed_avg(betas)
+		return agg_average(gammas), agg_average(betas)

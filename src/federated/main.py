@@ -197,7 +197,7 @@ def main():
 	learning_rate = 0.05 
 	# NOTE: key is to have enough local iterations for gamma estimation  
 	local_epochs = 40
-	global_epochs = 5
+	global_epochs = 5 
 
 	X, y, delta, logtime = data()
 
@@ -205,26 +205,42 @@ def main():
 	n_clients = 3
 	idxs = distributed_data_idx(X.shape[0], n_clients)
 
+	gamma_star = np.load("./results/gamma_star.npy")
+
 	clients = []
 	for i, idx in enumerate(idxs):
 		clients.append(create_client(X[idx], delta[idx], logtime[idx], local_epochs, learning_rate))
 		
-	server = Server(clients, global_epochs)
+		# TEMP
+		clients[i].update_weights(gamma=gamma_star)
+		###
 
-	# TODO: pass back gradients to server. server sums (NOT avg) and then updates weights
-	# parameter estimation 
-	server.fit_gamma()
+	server = Server(clients, global_epochs)
+	
+	# DONE 	
+	#server.fit_gamma()
+	#server.update_client_splines()
+	#server.fit_beta()
+	
+	# WIP: A Federated Generalized Linear Model for Privacy-Preserving Analysis
+	#	- use tf gradients for the 2nd derivative 
+	#server.fit_gamma_gradients()
 	server.update_client_splines()
-	server.fit_beta()
+	server.fit_beta_gradients()
 
 	# NOTE: key is running enough local epochs (40 local and 5 global)
-	eval_spline_experiment(server, clients, delta, logtime)
-	eval_beta_experiment(server, clients, X, y, delta, logtime)
+	#eval_spline_experiment(server, clients, delta, logtime)
+	#eval_beta_experiment(server, clients, X, y, delta, logtime)
 	
-	gamma_star, beta_star = server.aggregate_avg(clients)
+	#_, beta_star = server.aggregate_avg(clients)
+	#gamma_star = server.gamma
+	beta_star = server.beta
+
+	#np.save("./results/beta_star.npy", beta_star)
+	#np.save("./results/gamma_star.npy", gamma_star)
 
 	gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime)
-	eval_centralised_benchmark(X, y, delta, beta, gamma, logtime, loss_gamma, loss_beta)
+	#eval_centralised_benchmark(X, y, delta, beta, gamma, logtime, loss_gamma, loss_beta)
 	print(np.linalg.norm(gamma_star - gamma))
 	print(np.linalg.norm(beta_star - beta))
 

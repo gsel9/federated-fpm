@@ -30,7 +30,6 @@ def solve_beta(beta, X, S, dS, delta, learning_rate, n_epochs):
 		    
 	    nu = S + tf.matmul(X, beta)
 	    log_likelihood = delta * (tf.math.log(dS) + nu) - tf.exp(nu)
-
 	    return -1.0 * log_likelihood
 
 	beta = tf.Variable(beta, dtype=tf.float32)
@@ -38,7 +37,7 @@ def solve_beta(beta, X, S, dS, delta, learning_rate, n_epochs):
 	X = tf.cast(X, dtype=tf.float32)
 	S = tf.cast(S, dtype=tf.float32)
 	dS = tf.cast(dS, dtype=tf.float32)
-	delta = tf.cast(delta, dtype=tf.float32)
+	delta = tf.cast(delta[:, None], dtype=tf.float32)
 
 	optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
@@ -51,11 +50,31 @@ def solve_beta(beta, X, S, dS, delta, learning_rate, n_epochs):
 	return beta.numpy(), loss_beta
 
 
-def solve_gamma_gradient():
+def compute_gamma_gradients(gamma, Z, knots_y):
 
-	return gamma_gradient.numpy(), loss_gamma
+	Z = tf.cast(Z, dtype=tf.float32)
+	knots_y = tf.cast(knots_y, dtype=tf.float32)
+
+	loss_object = tf.keras.losses.MeanSquaredError()
+
+	with tf.GradientTape() as tape:
+		tape.watch(gamma)
+		mse = loss_object(y_true=knots_y, y_pred=Z @ gamma)
+
+	return tape.gradient(mse, gamma)
 
 
-def solve_beta_gradient():
+def compute_beta_gradients(beta, S, X, delta, dS):
 
-	return beta_gradient.numpy(), loss_beta
+	X = tf.cast(X, dtype=tf.float32)
+	S = tf.cast(S, dtype=tf.float32)
+	dS = tf.cast(dS, dtype=tf.float32)
+	delta = tf.cast(delta[:, None], dtype=tf.float32)
+
+	nu = S + tf.matmul(X, beta)
+
+	# first and second order gradients 
+	dl_db = tf.reduce_sum(-X * (delta - tf.exp(nu)), axis=0)[:, None]
+	d2l_db2 = tf.reduce_sum(X * X * tf.exp(nu), axis=0)[:, None]
+
+	return dl_db, d2l_db2

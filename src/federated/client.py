@@ -5,8 +5,10 @@ import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 
 from splines import NaturalCubicSpline, knots
-from optimisation import (solve_gamma, solve_gamma_gradient, 
-						  solve_beta, solve_beta_gradient)
+from optimisation import (solve_gamma, 
+						  solve_beta,
+						  compute_gamma_gradients,
+						  compute_beta_gradients)
 
 
 def create_client(X, delta, logtime, n_epochs, learning_rate, seed=42):
@@ -19,9 +21,11 @@ def create_client(X, delta, logtime, n_epochs, learning_rate, seed=42):
 	knots_x, knots_y = knots(logtime, delta)
 
 	ncs = NaturalCubicSpline(knots=knots_x, order=1, intercept=True)
+
 	Z = ncs.transform(knots_y, derivative=False)
-	dZ = ncs.transform(logtime, derivative=True)
 	Z_long = ncs.transform(logtime, derivative=False)
+
+	dZ = ncs.transform(logtime, derivative=True)
 
 	initializer = tf.keras.initializers.GlorotNormal(seed=seed)
 	beta = initializer(shape=(X.shape[1], 1))
@@ -63,6 +67,18 @@ class Client:
 		self.beta, loss_beta = solve_beta(self.beta, self.X, self.S, self.dS, self.delta,
 										  self.learning_rate, self.n_epochs)
 		self.loss_beta.extend(loss_beta)
+
+	def gamma_gradients(self, gamma_variable):
+
+		gradients = compute_gamma_gradients(gamma_variable, self.Z, self.knots_y)
+		return gradients 
+
+	def beta_gradients(self, beta_variable):
+
+		dl_db, d2l_db2 = compute_beta_gradients(beta_variable, self.S, self.X, self.delta, self.dS)
+		return dl_db, d2l_db2
+		#gradients = compute_beta_gradients(beta_variable, self.S, self.X, self.delta, self.dS)
+		#return gradients 
 
 	def update_weights(self, gamma=None, beta=None):
 
