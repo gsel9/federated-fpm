@@ -49,19 +49,6 @@ def distributed_data_idx(n_samples, n_clients, seed=42):
 	return idxs 
 
 
-def spline_experiment(server, clients, epochs):
-
-	for _ in range(epochs):
-
-		for i, client in enumerate(clients):
-			client.fit_gamma()
-
-		gamma, _ = server.aggregate(clients)
-
-		for client in clients:
-			client.update_weights(gamma=gamma)
-
-
 def eval_spline_experiment(server, clients, delta, logtime):
 
 	plt.figure()
@@ -85,7 +72,7 @@ def eval_spline_experiment(server, clients, delta, logtime):
 	plt.savefig(f"./figures/knots_local.pdf")
 
 	# global knots 
-	gamma, _ = server.aggregate(clients)
+	gamma, _ = server.aggregate_avg(clients)
 	knots_x, knots_y = knots(logtime, delta)
 
 	ncs = NaturalCubicSpline(knots=knots_x, order=1, intercept=True)
@@ -97,18 +84,15 @@ def eval_spline_experiment(server, clients, delta, logtime):
 	plt.legend()
 	plt.savefig("./figures/knots_global.pdf")
 
-
-def beta_experiment(server, clients, epochs):
-
-	for _ in range(epochs):
-		for i, client in enumerate(clients):
-	
-			client.fit_beta()
-
-		_, beta = server.aggregate(clients)
-
-		for client in clients:
-			client.update_weights(beta=beta)
+	# global logtime 
+	plt.figure()
+	ncs = NaturalCubicSpline(knots=knots_x, order=1, intercept=True)
+	Z = ncs.transform(logtime, derivative=False)
+	logtime_hat = (Z @ gamma).squeeze()
+	plt.plot(np.linspace(0, 1, len(logtime)), sorted(logtime), label="reference")
+	plt.plot(np.linspace(0, 1, len(logtime_hat)), sorted(logtime_hat), label="estimate")
+	plt.legend()
+	plt.savefig(f"./figures/logtime.pdf")
 
 
 def eval_beta_experiment(server, clients, X, y, delta, logtime):
@@ -119,7 +103,7 @@ def eval_beta_experiment(server, clients, X, y, delta, logtime):
 	plt.legend()
 	plt.savefig("./figures/loss_beta.pdf")
 
-	_, beta_star = server.aggregate(clients)
+	_, beta_star = server.aggregate_avg(clients)
 
 	# baseline predictor comparison
 	model = LogisticRegression()
@@ -152,20 +136,7 @@ def eval_beta_experiment(server, clients, X, y, delta, logtime):
 	plt.savefig("./figures/cmats_beta.pdf")
 
 
-def alternating_experiment(server, clients, epochs):
-
-	for _ in range(epochs):
-
-		for i, client in enumerate(clients):
-			client.fit()
-
-		_, beta = server.aggregate(clients)
-
-		for client in clients:
-			client.update_weights(beta=beta)
-
-
-def eval_centralised_benchmark(X, y, delta, beta, loss_gamma, loss_beta):
+def eval_centralised_benchmark(X, y, delta, beta, gamma, logtime, loss_gamma, loss_beta):
 
 	plt.figure()
 	plt.plot(loss_gamma)
@@ -174,6 +145,18 @@ def eval_centralised_benchmark(X, y, delta, beta, loss_gamma, loss_beta):
 	plt.figure()
 	plt.plot(loss_beta)
 	plt.savefig("./figures/loss_beta_centralised.pdf")
+
+	knots_x, knots_y = knots(logtime, delta)	
+
+	# global logtime 
+	plt.figure()
+	ncs = NaturalCubicSpline(knots=knots_x, order=1, intercept=True)
+	Z = ncs.transform(logtime, derivative=False)
+	logtime_hat = (Z @ gamma).squeeze()
+	plt.plot(np.linspace(0, 1, len(logtime)), sorted(logtime), label="reference")
+	plt.plot(np.linspace(0, 1, len(logtime_hat)), sorted(logtime_hat), label="estimate")
+	plt.legend()
+	plt.savefig(f"./figures/logtime_centralised.pdf")
 
 	# baseline predictor comparison
 	model = LogisticRegression()
@@ -184,7 +167,7 @@ def eval_centralised_benchmark(X, y, delta, beta, loss_gamma, loss_beta):
 
 	model = CoxPHSurvivalAnalysis()
 	model.fit(X, y)
-
+	
 	y_pred_ph = (model.predict(X).squeeze() > 0).astype(int)
 	cmat_ph = confusion_matrix(delta, y_pred_ph)
 
@@ -206,78 +189,6 @@ def eval_centralised_benchmark(X, y, delta, beta, loss_gamma, loss_beta):
 	plt.savefig("./figures/cmats_beta_centralised.pdf")
 
 
-def eval_alternating_experiment(server, clients, X, y, delta, logtime):
-
-	plt.figure()
-	for i, client in enumerate(clients):
-		plt.plot(client.loss_gamma, label=f"C{i+1}")
-	plt.legend()
-	plt.savefig("./figures/loss_gamma_alternate.pdf")
-
-	# local knots 
-	plt.figure()
-	for i, client in enumerate(clients):
-	
-		knots_x, knots_y = knots(client.logtime, client.delta)
-		ncs = NaturalCubicSpline(knots=knots_x, order=1, intercept=True)
-		Z = ncs.transform(knots_y, derivative=False)
-
-		plt.plot(knots_x, knots_y, marker="o", linestyle="", label=f"knots C{i+1}")
-		plt.plot(knots_x, (Z @ client.gamma).squeeze(), marker="o", linestyle="", label=f"estimate C{i+1}")
-
-	plt.legend()
-	plt.savefig(f"./figures/knots_local_alternate.pdf")
-
-	# global knots 
-	gamma, beta = server.aggregate(clients)
-	knots_x, knots_y = knots(logtime, delta)
-
-	ncs = NaturalCubicSpline(knots=knots_x, order=1, intercept=True)
-	Z = ncs.transform(knots_y, derivative=False)
-
-	plt.figure()
-	plt.plot(knots_x, (Z @ gamma).squeeze(), marker="o", linestyle="", label="aggregated")
-	plt.plot(knots_x, knots_y, marker="o", linestyle="", label="knots")
-	plt.legend()
-	plt.savefig("./figures/knots_global_alternate.pdf")
-
-	plt.figure()
-	for i, client in enumerate(clients):
-		plt.plot(client.loss_beta, label=f"C{i+1}")
-	plt.legend()
-	plt.savefig("./figures/loss_beta_alternate.pdf")
-
-	# baseline predictor comparison
-	model = LogisticRegression()
-	model.fit(X, delta)
-
-	y_pred_lr = model.predict(X)
-	cmat_lr = confusion_matrix(delta, y_pred_lr)
-
-	model = CoxPHSurvivalAnalysis()
-	model.fit(X, y)
-
-	y_pred_ph = (model.predict(X).squeeze() > 0).astype(int)
-	cmat_ph = confusion_matrix(delta, y_pred_ph)
-
-	y_pred_fl = ((X @ beta).squeeze() > 0).astype(int)
-	cmat_fl = confusion_matrix(delta, y_pred_fl)
-
-	fig, axes = plt.subplots(ncols=3, figsize=(12, 6))
-	axes[0].set_title("LR")
-	axes[1].set_title("PH")
-	axes[2].set_title("FL")
-
-	display = ConfusionMatrixDisplay(cmat_lr)
-	display.plot(ax=axes[0], colorbar=False)
-	display = ConfusionMatrixDisplay(cmat_ph)
-	display.plot(ax=axes[1], colorbar=False)
-	display = ConfusionMatrixDisplay(cmat_fl)
-	display.plot(ax=axes[2], colorbar=False)
-
-	plt.savefig("./figures/cmats_beta_alternate.pdf")
-
-
 def main():
 	# NOTE (ideas)
 	# - other spline/kernel models for baseline hazard 
@@ -294,39 +205,26 @@ def main():
 	n_clients = 3
 	idxs = distributed_data_idx(X.shape[0], n_clients)
 
-	server = Server()
-
 	clients = []
 	for i, idx in enumerate(idxs):
 		clients.append(create_client(X[idx], delta[idx], logtime[idx], local_epochs, learning_rate))
 		
+	server = Server(clients, global_epochs)
+
+	# TODO: pass back gradients to server. server sums (NOT avg) and then updates weights
+	# parameter estimation 
+	server.fit_gamma()
+	server.set_client_gamma()
+	server.fit_beta()
+
 	# NOTE: key is running enough local epochs (40 local and 5 global)
-	spline_experiment(server, clients, global_epochs)
 	eval_spline_experiment(server, clients, delta, logtime)
-	gamma_star, _ = server.aggregate(clients)
-	np.save("./results/gamma_star.npy", gamma_star)
-
-	gamma_star = np.load("./results/gamma_star.npy")
-	for client in clients:
-
-		client.update_weights(gamma=gamma_star)
-		client.update_splines()
-	
-	beta_experiment(server, clients, global_epochs)
 	eval_beta_experiment(server, clients, X, y, delta, logtime)
-	_, beta_star = server.aggregate(clients)
-	np.save("./results/beta_star.npy", beta_star)
-	beta_star = np.load("./results/beta_star.npy")
 	
-	#alternating_experiment(server, clients, global_epochs)
-	#eval_alternating_experiment(server, clients, X, y, delta, logtime)
-
-	gamma_star, beta_star = server.aggregate(clients)
+	gamma_star, beta_star = server.aggregate_avg(clients)
 
 	gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime)
-	eval_centralised_benchmark(X, y, delta, beta, loss_gamma, loss_beta)
-	#print(gamma)
-	#print(beta)
+	eval_centralised_benchmark(X, y, delta, beta, gamma, logtime, loss_gamma, loss_beta)
 	print(np.linalg.norm(gamma_star - gamma))
 	print(np.linalg.norm(beta_star - beta))
 
