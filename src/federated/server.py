@@ -65,17 +65,14 @@ class Server:
 
 		for epoch in range(epochs):
 
-			#gradients = 0
 			dl_dbs, d2l_db2s = 0, 0
 			for i, client in enumerate(self.clients):
 				
-				#gradients += client.beta_gradients(beta_variable)
 				dl_db, d2l_db2 = client.beta_gradients(beta_variable)
-
 				dl_dbs += dl_db
 				d2l_db2s += d2l_db2
 
-			beta_variable = beta_variable - dl_dbs / (d2l_db2s)
+			beta_variable = beta_variable - dl_dbs / d2l_db2s
 
 		self.beta = beta_variable.numpy()
 

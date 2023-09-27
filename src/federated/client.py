@@ -77,9 +77,7 @@ class Client:
 
 		dl_db, d2l_db2 = compute_beta_gradients(beta_variable, self.S, self.X, self.delta, self.dS)
 		return dl_db, d2l_db2
-		#gradients = compute_beta_gradients(beta_variable, self.S, self.X, self.delta, self.dS)
-		#return gradients 
-
+		
 	def update_weights(self, gamma=None, beta=None):
 
 		if gamma is not None:

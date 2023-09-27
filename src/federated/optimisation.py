@@ -72,7 +72,6 @@ def compute_beta_gradients(beta, S, X, delta, dS):
 	delta = tf.cast(delta[:, None], dtype=tf.float32)
 
 	nu = S + tf.matmul(X, beta)
-
 	# first and second order gradients 
 	dl_db = tf.reduce_sum(-X * (delta - tf.exp(nu)), axis=0)[:, None]
 	d2l_db2 = tf.reduce_sum(X * X * tf.exp(nu), axis=0)[:, None]

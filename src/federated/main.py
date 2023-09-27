@@ -103,7 +103,8 @@ def eval_beta_experiment(server, clients, X, y, delta, logtime):
 	plt.legend()
 	plt.savefig("./figures/loss_beta.pdf")
 
-	_, beta_star = server.aggregate_avg(clients)
+	#_, beta_star = server.aggregate_avg(clients)
+	beta_star = server.beta
 
 	# baseline predictor comparison
 	model = LogisticRegression()
@@ -226,11 +227,11 @@ def main():
 	#	- use tf gradients for the 2nd derivative 
 	#server.fit_gamma_gradients()
 	server.update_client_splines()
-	server.fit_beta_gradients()
+	server.fit_beta_gradients(epochs=100)
 
 	# NOTE: key is running enough local epochs (40 local and 5 global)
 	#eval_spline_experiment(server, clients, delta, logtime)
-	#eval_beta_experiment(server, clients, X, y, delta, logtime)
+	eval_beta_experiment(server, clients, X, y, delta, logtime)
 	
 	#_, beta_star = server.aggregate_avg(clients)
 	#gamma_star = server.gamma
