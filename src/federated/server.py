@@ -9,6 +9,11 @@ class Server:
 		self.epochs = epochs
 		self.seed = seed
 
+		self.gamma, self.beta = None, None 
+
+		# TEMP 
+		optimizer = tf.keras.optimizers.Adam(learning_rate=0.05)
+
 	def fit_gamma(self):
 
 		for epoch in range(self.epochs):
@@ -16,16 +21,14 @@ class Server:
 			for i, client in enumerate(self.clients):
 				client.fit_gamma()
 
-			gamma, _ = self.aggregate_avg(self.clients)
+			self.gamma, _ = self.aggregate_avg(self.clients)
 
 			for client in self.clients:
-				client.update_weights(gamma=gamma)
+				client.update_weights(gamma=self.gamma)
 
-	def set_client_gamma(self):
+	def update_client_splines(self):
 
 		for client in self.clients:
-
-			client.update_weights(gamma=self.gamma)
 			client.update_splines()
 
 	def fit_beta(self):
@@ -35,10 +38,11 @@ class Server:
 			for i, client in enumerate(self.clients):
 				client.fit_beta()
 
-			_, beta = self.aggregate_avg(self.clients)
+			_, self.beta = self.aggregate_gradients(self.clients)
+			#_, self.beta = self.aggregate_avg(self.clients)
 
 			for client in self.clients:
-				client.update_weights(beta=beta)
+				client.update_weights(beta=self.beta)
 
 	@staticmethod
 	def fed_sum(weights):
@@ -48,7 +52,7 @@ class Server:
 	def fed_avg(weights):
 		return np.mean(weights, axis=0)
 
-	def aggregate_sum(self, clients):
+	def aggregate_gradients(self, clients):
 
 		gammas, betas = [], []
 
@@ -56,6 +60,10 @@ class Server:
 
 			gammas.append(client.gamma)
 			betas.append(client.beta)
+
+		# TODO: 
+		# - sum gradients 
+		# - sever does one step of gradient descent 
 		
 		return self.fed_sum(gammas), self.fed_sum(betas)
 	

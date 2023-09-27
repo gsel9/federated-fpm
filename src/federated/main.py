@@ -214,7 +214,7 @@ def main():
 	# TODO: pass back gradients to server. server sums (NOT avg) and then updates weights
 	# parameter estimation 
 	server.fit_gamma()
-	server.set_client_gamma()
+	server.update_client_splines()
 	server.fit_beta()
 
 	# NOTE: key is running enough local epochs (40 local and 5 global)
