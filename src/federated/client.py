@@ -55,19 +55,22 @@ class Client:
 
 	def fit_gamma(self):
 
-		self.gamma, loss_gamma = gradient_descent_gamma(self.gamma, self.Z, self.knots_y, 
-		  											    self.learning_rate, self.n_epochs)
+		gamma, loss_gamma = gradient_descent_gamma(self.gamma, self.Z, self.knots_y, 
+		  										   self.learning_rate, self.n_epochs)
+		self.update_weights(gamma=gamma)
 		self.loss_gamma.extend(loss_gamma)
 		
 	def fit_beta(self):
 		
-		self.beta, loss_beta = gradient_descent_beta(self.beta, self.X, self.S, self.dS, self.delta,
-										  			 self.learning_rate, self.n_epochs)
+		beta, loss_beta = gradient_descent_beta(self.beta, self.X, self.S, self.dS, self.delta,
+										  	    self.learning_rate, self.n_epochs)
+		self.update_weights(beta=beta)
 		self.loss_beta.extend(loss_beta)
 		
 	def update_weights(self, gamma=None, beta=None):
 
 		if gamma is not None:
+			
 			self.gamma = gamma 
 			self.update_splines()
 

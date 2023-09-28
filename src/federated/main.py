@@ -41,12 +41,15 @@ def distributed_data_idx(n_samples, n_clients, seed=42):
 	np.random.seed(seed)
 	idxs = np.array_split(range(n_samples), n_clients)
 
+	n_client_samples = []
 	for i, idx in enumerate(idxs):
 
 		idx.sort()
-		print(f"N samples client {i + 1}:", len(idx))
+		n_client_samples.append(len(idx))
+
+		print(f"N samples client {i + 1}:", n_client_samples[i])
 	
-	return idxs 
+	return idxs, np.array(n_client_samples)
 
 
 def eval_spline_experiment(server, clients, delta, logtime):
@@ -200,13 +203,13 @@ def main():
 
 	# distributed data 
 	n_clients = 3
-	idxs = distributed_data_idx(X.shape[0], n_clients)
+	idxs, n_client_samples = distributed_data_idx(X.shape[0], n_clients)
 
 	clients = []
 	for i, idx in enumerate(idxs):
 		clients.append(create_client(X[idx], delta[idx], logtime[idx], local_epochs, learning_rate))
 		
-	server = Server(clients, global_epochs)	
+	server = Server(clients, global_epochs, n_client_samples)	
 	server.fit_gamma()
 	server.fit_beta()
 	

@@ -4,11 +4,13 @@ import tensorflow as tf
 
 class Server:
 	
-	def __init__(self, clients, epochs, seed=42):
+	def __init__(self, clients, epochs, n_client_samples, seed=42):
 
 		self.clients = clients
 		self.epochs = epochs
 		self.seed = seed
+
+		self.client_weights = n_client_samples / sum(n_client_samples)
 
 		self.gamma, self.beta = None, None 
 
@@ -38,10 +40,9 @@ class Server:
 			for client in self.clients:
 				client.update_weights(beta=self.beta)
 
-	# TODO: sample number weighting coefficients 
 	def aggregate_avg(self, clients):
 
-		agg_average = lambda values: np.mean(values, axis=0)
+		fed_avg = lambda values: np.average(values, axis=0, weights=self.client_weights)
 
 		gammas, betas = [], []
 		for client in clients:
@@ -49,4 +50,4 @@ class Server:
 			gammas.append(client.gamma)
 			betas.append(client.beta)
 		
-		return agg_average(gammas), agg_average(betas)
+		return fed_avg(gammas), fed_avg(betas)
