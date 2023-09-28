@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf 
 
 
-def solve_gamma(gamma, Z, knots_y, learning_rate, n_epochs):
+def gradient_descent_gamma(gamma, Z, knots_y, learning_rate, n_epochs):
 
 	def _loss_gamma():
 		return loss_object(y_true=knots_y, y_pred=Z @ gamma)
@@ -24,7 +24,7 @@ def solve_gamma(gamma, Z, knots_y, learning_rate, n_epochs):
 	return gamma.numpy(), loss_gamma
 
 
-def solve_beta(beta, X, S, dS, delta, learning_rate, n_epochs):
+def gradient_descent_beta(beta, X, S, dS, delta, learning_rate, n_epochs):
 
 	def _loss_beta():
 		    
@@ -48,32 +48,3 @@ def solve_beta(beta, X, S, dS, delta, learning_rate, n_epochs):
 	    loss_beta.append(np.mean(_loss_beta().numpy()))
 
 	return beta.numpy(), loss_beta
-
-
-def compute_gamma_gradients(gamma, Z, knots_y):
-
-	Z = tf.cast(Z, dtype=tf.float32)
-	knots_y = tf.cast(knots_y, dtype=tf.float32)
-
-	loss_object = tf.keras.losses.MeanSquaredError()
-
-	with tf.GradientTape() as tape:
-		tape.watch(gamma)
-		mse = loss_object(y_true=knots_y, y_pred=Z @ gamma)
-
-	return tape.gradient(mse, gamma)
-
-
-def compute_beta_gradients(beta, S, X, delta, dS):
-
-	X = tf.cast(X, dtype=tf.float32)
-	S = tf.cast(S, dtype=tf.float32)
-	dS = tf.cast(dS, dtype=tf.float32)
-	delta = tf.cast(delta[:, None], dtype=tf.float32)
-
-	nu = S + tf.matmul(X, beta)
-	# first and second order gradients 
-	dl_db = tf.reduce_sum(-X * (delta - tf.exp(nu)), axis=0)[:, None]
-	d2l_db2 = tf.reduce_sum(X * X * tf.exp(nu), axis=0)[:, None]
-
-	return dl_db, d2l_db2

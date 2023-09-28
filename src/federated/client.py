@@ -5,10 +5,7 @@ import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 
 from splines import NaturalCubicSpline, knots
-from optimisation import (solve_gamma, 
-						  solve_beta,
-						  compute_gamma_gradients,
-						  compute_beta_gradients)
+from optimisation import gradient_descent_beta, gradient_descent_gamma
 
 
 def create_client(X, delta, logtime, n_epochs, learning_rate, seed=42):
@@ -58,30 +55,21 @@ class Client:
 
 	def fit_gamma(self):
 
-		self.gamma, loss_gamma = solve_gamma(self.gamma, self.Z, self.knots_y, 
-											 self.learning_rate, self.n_epochs)
+		self.gamma, loss_gamma = gradient_descent_gamma(self.gamma, self.Z, self.knots_y, 
+		  											    self.learning_rate, self.n_epochs)
 		self.loss_gamma.extend(loss_gamma)
 		
 	def fit_beta(self):
 		
-		self.beta, loss_beta = solve_beta(self.beta, self.X, self.S, self.dS, self.delta,
-										  self.learning_rate, self.n_epochs)
+		self.beta, loss_beta = gradient_descent_beta(self.beta, self.X, self.S, self.dS, self.delta,
+										  			 self.learning_rate, self.n_epochs)
 		self.loss_beta.extend(loss_beta)
-
-	def gamma_gradients(self, gamma_variable):
-
-		gradients = compute_gamma_gradients(gamma_variable, self.Z, self.knots_y)
-		return gradients 
-
-	def beta_gradients(self, beta_variable):
-
-		dl_db, d2l_db2 = compute_beta_gradients(beta_variable, self.S, self.X, self.delta, self.dS)
-		return dl_db, d2l_db2
 		
 	def update_weights(self, gamma=None, beta=None):
 
 		if gamma is not None:
 			self.gamma = gamma 
+			self.update_splines()
 
 		if beta is not None:
 			self.beta = beta 
