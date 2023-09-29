@@ -1,10 +1,10 @@
 import numpy as np 
 
 
-def knots(logtime, delta):
+def knots(logtime, delta, n_knots=6):
 
     # knot locations are at the centiles of the distribution of *uncensored* log event times
-    knots_x = np.linspace(0, 1, 6)
+    knots_x = np.linspace(0, 1, n_knots)
     knots_y = np.ones(len(knots_x)) * float(np.nan)
 
     # uncensored event times 

@@ -5,7 +5,7 @@ from sksurv.datasets import load_whas500
 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
+#from sklearn.preprocessing import StandardScaler
 
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 
@@ -24,8 +24,8 @@ def data():
 	# retain only numerical covariates 
 	X = X.loc[:, ["age", "bmi", "diasbp", "hr", "los", "sysbp"]].values
 
-	scaler = StandardScaler()
-	X = scaler.fit_transform(X)
+	#scaler = StandardScaler()
+	#X = scaler.fit_transform(X)
 
 	delta = np.array(delta).astype(int)
 	logtime = np.log(np.array(time))
@@ -33,7 +33,7 @@ def data():
 	# HACK: otherwise neg values in dS
 	to_keep = logtime > 0
 
-	return X[to_keep], y[to_keep], delta[to_keep], logtime[to_keep]
+	return X[to_keep], y[to_keep][:, None], delta[to_keep][:, None], logtime[to_keep][:, None]
 
 
 def distributed_data_idx(n_samples, n_clients, seed=42):
@@ -41,15 +41,12 @@ def distributed_data_idx(n_samples, n_clients, seed=42):
 	np.random.seed(seed)
 	idxs = np.array_split(range(n_samples), n_clients)
 
-	n_client_samples = []
 	for i, idx in enumerate(idxs):
 
 		idx.sort()
-		n_client_samples.append(len(idx))
-
-		print(f"N samples client {i + 1}:", n_client_samples[i])
+		print(f"N samples client {i + 1}:", len(idx))
 	
-	return idxs, np.array(n_client_samples)
+	return idxs
 
 
 def eval_spline_experiment(server, clients, delta, logtime):
@@ -75,7 +72,7 @@ def eval_spline_experiment(server, clients, delta, logtime):
 	plt.savefig(f"./figures/knots_local.pdf")
 
 	# global knots 
-	gamma, _ = server.aggregate_avg(clients)
+	gamma = server.gamma
 	knots_x, knots_y = knots(logtime, delta)
 
 	ncs = NaturalCubicSpline(knots=knots_x, order=1, intercept=True)
@@ -106,8 +103,7 @@ def eval_beta_experiment(server, clients, X, y, delta, logtime):
 	plt.legend()
 	plt.savefig("./figures/loss_beta.pdf")
 
-	_, beta_star = server.aggregate_avg(clients)
-	#beta_star = server.beta
+	beta_star = server.beta
 
 	# baseline predictor comparison
 	model = LogisticRegression()
@@ -193,39 +189,64 @@ def eval_centralised_benchmark(X, y, delta, beta, gamma, logtime, loss_gamma, lo
 	plt.savefig("./figures/cmats_beta_centralised.pdf")
 
 
+def initialize_parameters(size_beta, size_gamma, seed=42):
+
+	np.random.seed(42)
+	beta = np.random.normal(size=(size_beta, 1))
+	gamma = np.random.normal(size=(size_gamma, 1))
+
+	return gamma, beta 
+
+
 def main():
+	# TODO: wrap in flower 
+
+	n_clients = 1
+
+	order = 1
+	intercept = True
+
+	n_knots = 6
 
 	learning_rate = 0.05 
-	local_epochs = 40
-	global_epochs = 5 
+	local_epochs = 1 #40
+	global_epochs = 200 #5 
 
 	X, y, delta, logtime = data()
 
+	gamma_init, beta_init = initialize_parameters(size_beta=X.shape[1], 
+												  size_gamma=int(intercept) + order + n_knots - 1) 
 	# distributed data 
-	n_clients = 3
-	idxs, n_client_samples = distributed_data_idx(X.shape[0], n_clients)
+	idxs = distributed_data_idx(X.shape[0], n_clients)
+
+	# TODOOO: Check get same losses
 
 	clients = []
 	for i, idx in enumerate(idxs):
-		clients.append(create_client(X[idx], delta[idx], logtime[idx], local_epochs, learning_rate))
+		clients.append(create_client(X[idx], delta[idx], logtime[idx], local_epochs, learning_rate, n_knots))
+		print(f"Created client: {i+1}")
 		
-	server = Server(clients, global_epochs, n_client_samples)	
-	server.fit_gamma()
-	server.fit_beta()
+	server = Server(clients, global_epochs, learning_rate, gamma_init, beta_init)
+	#server.fit_gamma()
+	#server.fit_beta()
+	server.fit_gamma_gradients()
+	server.fit_beta_gradients()
 	
-	eval_spline_experiment(server, clients, delta, logtime)
-	eval_beta_experiment(server, clients, X, y, delta, logtime)
+	#eval_spline_experiment(server, clients, delta, logtime)
+	#eval_beta_experiment(server, clients, X, y, delta, logtime)
 	
-	gamma_star, beta_star = server.aggregate_avg(clients)
+	gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X[idxs[0]], delta[idxs[0]], logtime[idxs[0]], n_knots, gamma_init, beta_init,
+	##gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init,
+															   learning_rate, global_epochs, order, intercept)
+	#eval_centralised_benchmark(X, y, delta, beta, gamma, logtime, loss_gamma, loss_beta)
 
-	np.save("./results/beta_star.npy", beta_star)
-	np.save("./results/gamma_star.npy", gamma_star)
+	#np.save("./results/beta_central.npy", beta)
+	#np.save("./results/gamma_central.npy", gamma)
 
-	gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime)
-	eval_centralised_benchmark(X, y, delta, beta, gamma, logtime, loss_gamma, loss_beta)
-
-	print(np.linalg.norm(gamma_star - gamma))
-	print(np.linalg.norm(beta_star - beta))
+	#beta = np.load("./results/beta_central.npy")
+	#gamma = np.load("./results/gamma_central.npy")
+	print(np.linalg.norm(server.gamma - gamma))
+	print(np.linalg.norm(server.beta - beta))
 
 
 if __name__ == "__main__":

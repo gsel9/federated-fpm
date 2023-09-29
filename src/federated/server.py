@@ -4,15 +4,72 @@ import tensorflow as tf
 
 class Server:
 	
-	def __init__(self, clients, epochs, n_client_samples, seed=42):
+	def __init__(self, clients, epochs, learning_rate, gamma, beta, seed=42):
 
 		self.clients = clients
 		self.epochs = epochs
 		self.seed = seed
 
-		self.client_weights = n_client_samples / sum(n_client_samples)
+		self.learning_rate = learning_rate
+		self.gamma = gamma 
+		self.beta = beta 
 
-		self.gamma, self.beta = None, None 
+		self._distribute_client_params(gamma, beta, update_splines=False)
+		self.weights = self._request_client_weights()
+
+	def _distribute_client_params(self, gamma=None, beta=None, update_splines=False):
+
+		for client in self.clients:
+			client.update_weights(gamma=gamma, beta=beta, update_splines=update_splines)
+
+	def _request_client_weights(self):
+
+		n_client_samples = []
+		for client in self.clients:
+			n_client_samples.append(client.n_samples)
+
+		return np.array(n_client_samples) / sum(n_client_samples)
+
+	def _request_spline_update(self):
+
+		for client in self.clients:
+			client.update_splines()
+
+	def fit_gamma_gradients(self):
+
+		optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+
+		gamma_variable = tf.Variable(self.gamma, dtype=tf.float32)
+		
+		for epoch in range(self.epochs):
+
+			gradients = []
+			for i, client in enumerate(self.clients):
+				gradients.append(client.gamma_gradients())
+			
+			optimizer.apply_gradients([(np.vstack(gradients), gamma_variable)])
+
+			self._distribute_client_params(gamma=gamma_variable.numpy())
+		self._request_spline_update()
+
+		self.gamma = gamma_variable.numpy()
+
+	def fit_beta_gradients(self):
+		
+		optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+
+		beta_variable = tf.Variable(self.beta, dtype=tf.float32)
+		
+		for epoch in range(self.epochs):
+
+			gradients = []
+			for i, client in enumerate(self.clients):
+				gradients.append(client.beta_gradients())
+
+			optimizer.apply_gradients([(np.vstack(gradients), beta_variable)])
+			
+			self._distribute_client_params(beta=beta_variable.numpy())
+		self.beta = beta_variable.numpy() 
 
 	# TODO: init gamma params at server 
 	def fit_gamma(self):
@@ -24,8 +81,8 @@ class Server:
 
 			self.gamma, _ = self.aggregate_avg(self.clients)
 
-			for client in self.clients:
-				client.update_weights(gamma=self.gamma)
+		for client in self.clients:
+			client.update_weights(gamma=self.gamma, update_splines=True)
 
 	# TODO: init beta params at server 
 	def fit_beta(self):
@@ -40,9 +97,10 @@ class Server:
 			for client in self.clients:
 				client.update_weights(beta=self.beta)
 
+	# TODO: sample number weighting coefficients 
 	def aggregate_avg(self, clients):
 
-		fed_avg = lambda values: np.average(values, axis=0, weights=self.client_weights)
+		agg_average = lambda values: np.mean(values, axis=0)
 
 		gammas, betas = [], []
 		for client in clients:
@@ -50,4 +108,4 @@ class Server:
 			gammas.append(client.gamma)
 			betas.append(client.beta)
 		
-		return fed_avg(gammas), fed_avg(betas)
+		return agg_average(gammas), agg_average(betas)

@@ -2,64 +2,67 @@ import scipy as sp
 import numpy as np 
 import tensorflow as tf 
 
+from sklearn.preprocessing import StandardScaler
+
 from splines import NaturalCubicSpline, knots
 
 
-def centralised_benchmark(X, delta, logtime, order=1, intercept=True, seed=42):
+def centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init,
+						  learning_rate, global_epochs, order, intercept):
 
-	knots_x, knots_y = knots(logtime, delta)
+	scaler = StandardScaler()
+	X = scaler.fit_transform(X)
+
+	knots_x, knots_y = knots(logtime, delta, n_knots)
 
 	ncs = NaturalCubicSpline(knots=knots_x, order=order, intercept=intercept)
 	Z = ncs.transform(knots_y, derivative=False)
 	dZ = ncs.transform(logtime, derivative=True)
 	Z_long = ncs.transform(logtime, derivative=False)
 
-	initializer = tf.keras.initializers.GlorotNormal(seed=seed)
-	beta = initializer(shape=(X.shape[1], 1))
-	gamma = initializer(shape=(Z.shape[1], 1))
-
-	gamma, loss_gamma = fit_gamma(gamma, Z, knots_y)
+	gamma, loss_gamma = fit_gamma(gamma_init, Z, knots_y, global_epochs, learning_rate)
 
 	# spline matrices 
 	S = Z_long @ gamma
 	dS = dZ @ gamma[1:]
 
-	beta, loss_beta = fit_beta(beta, X, S, dS, delta)
+	beta, loss_beta = fit_beta(beta_init, X, S, dS, delta, global_epochs, learning_rate)
 
 	return gamma, beta, loss_gamma, loss_beta
 
 
-def fit_gamma(gamma, Z, knots_y, epochs=200, order=1, intercept=True):
+def fit_gamma(gamma, Z, knots_y, epochs, learning_rate, order=1, intercept=True):
 
-	def mse_loss():
-
-	    y_pred = tf.matmul(Z, gamma)
-	    return loss_object(y_true=y_true, y_pred=y_pred)
+	def _loss_gamma():
+		return tf.reduce_mean(tf.square(knots_y - Z @ gamma))
 
 	Z = tf.cast(Z, dtype=tf.float32)
 	y_true = tf.cast(knots_y, dtype=tf.float32)
 
 	gamma = tf.Variable(gamma, dtype=tf.float32)
 
-	optimizer = tf.keras.optimizers.Adam(learning_rate=0.05)
-	loss_object = tf.keras.losses.MeanSquaredError()
+	optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
 	losses = []
 	for epoch in range(epochs):
-	    
-	    optimizer.minimize(mse_loss, [gamma])
-	    losses.append(mse_loss())
+
+		with tf.GradientTape() as tape:
+			mse = _loss_gamma()
+
+		gradients = tape.gradient(mse, gamma)
+		optimizer.apply_gradients([(gradients, gamma)])
+		#optimizer.minimize(mse_loss, [gamma])
+		#losses.append(mse_loss())
 
 	return gamma.numpy(), losses
 
 
-def fit_beta(beta, X, S, dS, delta, epochs=200):
+def fit_beta(beta, X, S, dS, delta, epochs, learning_rate):
 	
-	def neg_log_likelihood():
-	    
+	def _loss_beta():
+		    
 	    nu = S + tf.matmul(X, beta)
 	    log_likelihood = delta * (tf.math.log(dS) + nu) - tf.exp(nu)
-
 	    return -1.0 * log_likelihood
 
 	beta = tf.Variable(beta, dtype=tf.float32)
@@ -69,12 +72,18 @@ def fit_beta(beta, X, S, dS, delta, epochs=200):
 	dS = tf.cast(dS, dtype=tf.float32)
 	delta = tf.cast(delta, dtype=tf.float32)
 
-	optimizer = tf.keras.optimizers.Adam(learning_rate=0.05)
+	optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
 	losses = []
 	for epoch in range(epochs):
-	    
-	    optimizer.minimize(neg_log_likelihood, [beta])
-	    losses.append(np.mean(neg_log_likelihood().numpy()))
+
+		with tf.GradientTape() as tape:
+			nll = _loss_beta()
+
+		gradients = tape.gradient(nll, beta)
+		optimizer.apply_gradients([(gradients, beta)])
+
+		#optimizer.minimize(_loss_beta, [beta])
+	    #losses.append(np.mean(neg_log_likelihood().numpy()))
 
 	return beta.numpy(), losses
