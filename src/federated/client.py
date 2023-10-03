@@ -2,21 +2,21 @@ import scipy as sp
 import numpy as np 
 import tensorflow as tf 
 
-from sklearn.preprocessing import StandardScaler
+#from sklearn.preprocessing import StandardScaler
 
 from splines import NaturalCubicSpline, knots
-from optimisation import (gradient_descent_beta, gradient_descent_gamma, 
-						  estimate_gamma_gradients, estimate_beta_gradients)
+from optimisation import estimate_gamma_gradients, estimate_beta_gradients
 
 
-def create_client(X, delta, logtime, n_epochs, learning_rate, n_knots=6, seed=42):
+def create_client(X, delta, logtime, n_epochs, learning_rate, knots_x, knots_y, n_knots=6, seed=42):
 
 	print("Frac censored:", sum(delta) / delta.size)
 
-	scaler = StandardScaler()
-	X = scaler.fit_transform(X)
+	# NOTE: assume no need for local standardisation 
+	#scaler = StandardScaler()
+	#X = scaler.fit_transform(X)
 
-	knots_x, knots_y = knots(logtime, delta, n_knots)
+	#knots_x, knots_y = knots(logtime, delta, n_knots)
 
 	ncs = NaturalCubicSpline(knots=knots_x, order=1, intercept=True)
 
@@ -79,14 +79,11 @@ class Client:
 										  			 self.learning_rate, self.n_epochs)
 		self.loss_beta.extend(loss_beta)
 		
-	def update_weights(self, gamma=None, beta=None, update_splines=True):
+	def update_weights(self, gamma=None, beta=None):
 
 		if gamma is not None:
 			self.gamma = gamma 
 	
-			if update_splines:
-				self.update_splines()
-
 		if beta is not None:
 			self.beta = beta 
 

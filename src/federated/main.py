@@ -5,7 +5,7 @@ from sksurv.datasets import load_whas500
 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.linear_model import LogisticRegression
-#from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler
 
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 
@@ -24,8 +24,9 @@ def data():
 	# retain only numerical covariates 
 	X = X.loc[:, ["age", "bmi", "diasbp", "hr", "los", "sysbp"]].values
 
-	#scaler = StandardScaler()
-	#X = scaler.fit_transform(X)
+	# NOTE: assume no need for local standardisation 
+	scaler = StandardScaler()
+	X = scaler.fit_transform(X)
 
 	delta = np.array(delta).astype(int)
 	logtime = np.log(np.array(time))
@@ -36,9 +37,8 @@ def data():
 	return X[to_keep], y[to_keep][:, None], delta[to_keep][:, None], logtime[to_keep][:, None]
 
 
-def distributed_data_idx(n_samples, n_clients, seed=42):
+def distributed_data_idx(n_samples, n_clients, stratifier, seed=42):
 
-	np.random.seed(seed)
 	idxs = np.array_split(range(n_samples), n_clients)
 
 	for i, idx in enumerate(idxs):
@@ -199,9 +199,8 @@ def initialize_parameters(size_beta, size_gamma, seed=42):
 
 
 def main():
-	# TODO: wrap in flower 
 
-	n_clients = 1
+	n_clients = 3
 
 	order = 1
 	intercept = True
@@ -210,33 +209,34 @@ def main():
 
 	learning_rate = 0.05 
 	local_epochs = 1 #40
-	global_epochs = 200 #5 
+	global_epochs = 30 #5 
 
 	X, y, delta, logtime = data()
 
 	gamma_init, beta_init = initialize_parameters(size_beta=X.shape[1], 
 												  size_gamma=int(intercept) + order + n_knots - 1) 
 	# distributed data 
-	idxs = distributed_data_idx(X.shape[0], n_clients)
+	idxs = distributed_data_idx(X.shape[0], n_clients, delta)
 
-	# TODOOO: Check get same losses
+	# assume global knots for now 
+	knots_x, knots_y = knots(logtime, delta, n_knots)
+
+	#gamma = np.load("./results/gamma_central.npy")
 
 	clients = []
 	for i, idx in enumerate(idxs):
-		clients.append(create_client(X[idx], delta[idx], logtime[idx], local_epochs, learning_rate, n_knots))
+		clients.append(create_client(X[idx], delta[idx], logtime[idx], local_epochs, learning_rate, knots_x, knots_y, n_knots))
 		print(f"Created client: {i+1}")
-		
+	
 	server = Server(clients, global_epochs, learning_rate, gamma_init, beta_init)
-	#server.fit_gamma()
-	#server.fit_beta()
 	server.fit_gamma_gradients()
+	server.request_spline_update()
 	server.fit_beta_gradients()
 	
 	#eval_spline_experiment(server, clients, delta, logtime)
 	#eval_beta_experiment(server, clients, X, y, delta, logtime)
 	
-	gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X[idxs[0]], delta[idxs[0]], logtime[idxs[0]], n_knots, gamma_init, beta_init,
-	##gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init,
+	gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init, knots_x, knots_y,
 															   learning_rate, global_epochs, order, intercept)
 	#eval_centralised_benchmark(X, y, delta, beta, gamma, logtime, loss_gamma, loss_beta)
 
@@ -245,8 +245,9 @@ def main():
 
 	#beta = np.load("./results/beta_central.npy")
 	#gamma = np.load("./results/gamma_central.npy")
-	print(np.linalg.norm(server.gamma - gamma))
-	print(np.linalg.norm(server.beta - beta))
+
+	print("gamma diff:", np.linalg.norm(server.gamma - gamma))
+	print("beta diff:", np.linalg.norm(server.beta - beta))
 
 
 if __name__ == "__main__":
