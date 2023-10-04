@@ -17,6 +17,8 @@ class Server:
 		self._distribute_client_params(gamma, beta)
 		self.weights = self._request_client_weights()
 
+		self.loss_gamma, self.loss_beta = [], []
+
 	def _distribute_client_params(self, gamma=None, beta=None):
 
 		for client in self.clients:
@@ -44,15 +46,19 @@ class Server:
 		
 		for epoch in range(self.epochs):
 
-			gradients = 0
+			gradients, losses = 0, 0
 			for i, client in enumerate(self.clients):
 
-				#gradients += self.weights[i] * client.gamma_gradients()
-				gradients += client.gamma_gradients()
+				gradient, loss = client.gamma_step()
+				
+				gradients += self.weights[i] * gradient
+				losses += self.weights[i] * loss
 			
 			optimizer.apply_gradients([(gradients, gamma_variable)])
-			
+
+			self.loss_gamma.append(losses)
 			self._distribute_client_params(gamma=gamma_variable.numpy())
+
 		self.gamma = gamma_variable.numpy()
 
 	def fit_beta_gradients(self):
@@ -63,11 +69,17 @@ class Server:
 
 		for epoch in range(self.epochs):
 
-			gradients = 0 
+			gradients, losses = 0, 0
 			for i, client in enumerate(self.clients):
-				gradients += client.beta_gradients()
+
+				gradient, loss = client.beta_step()
+				
+				gradients += self.weights[i] * gradient
+				losses += self.weights[i] * loss
 
 			optimizer.apply_gradients([(gradients, beta_variable)])
-		
+
+			self.loss_beta.append(losses)
 			self._distribute_client_params(beta=beta_variable.numpy())
+
 		self.beta = beta_variable.numpy() 

@@ -49,7 +49,7 @@ def fit_gamma(gamma, Z, knots_y, epochs, learning_rate, order=1, intercept=True)
 	for epoch in range(epochs):
 
 		optimizer.minimize(_loss_gamma, [gamma])
-		losses.append(_loss_gamma())
+		losses.append(np.mean(_loss_gamma()))
 
 	return gamma.numpy(), losses
 

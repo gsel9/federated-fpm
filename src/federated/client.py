@@ -5,7 +5,7 @@ import tensorflow as tf
 #from sklearn.preprocessing import StandardScaler
 
 from splines import NaturalCubicSpline, knots
-from optimisation import estimate_gamma_gradients, estimate_beta_gradients
+from optimisation import gamma_gradients_step, beta_gradients_step
 
 
 def create_client(X, delta, logtime, n_epochs, learning_rate, knots_x, knots_y, n_knots=6, seed=42):
@@ -53,31 +53,22 @@ class Client:
 	def n_samples(self):
 		return self.X.shape[0 ]
 
-	def gamma_gradients(self):
+	@property 
+	def z_statistic(self):
+		# return each beta coefficient divided by its standard error 
+		return self.beta / self.beta_se
 
-		gradients = estimate_gamma_gradients(self.gamma, self.Z, self.knots_y, 
+	def gamma_step(self):
+
+		gradients, loss_gamma = gamma_gradients_step(self.gamma, self.Z, self.knots_y, 
 		  		 									     self.learning_rate, self.n_epochs)
-		#self.loss_gamma.extend(loss_gamma)
-		return gradients
+		return gradients, loss_gamma
 
-	def beta_gradients(self):
+	def beta_step(self):
 
-		gradients = estimate_beta_gradients(self.beta, self.X, self.S, self.dS, self.delta,
+		gradients, loss_beta = beta_gradients_step(self.beta, self.X, self.S, self.dS, self.delta,
 										  			   self.learning_rate, self.n_epochs)
-		#self.loss_gamma.extend(loss_gamma)
-		return gradients
-
-	def fit_gamma(self):
-
-		self.gamma, loss_gamma = gradient_descent_gamma(self.gamma, self.Z, self.knots_y, 
-		  											    self.learning_rate, self.n_epochs)
-		self.loss_gamma.extend(loss_gamma)
-		
-	def fit_beta(self):
-		
-		self.beta, loss_beta = gradient_descent_beta(self.beta, self.X, self.S, self.dS, self.delta,
-										  			 self.learning_rate, self.n_epochs)
-		self.loss_beta.extend(loss_beta)
+		return gradients, loss_beta
 		
 	def update_weights(self, gamma=None, beta=None):
 
