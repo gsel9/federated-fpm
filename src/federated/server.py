@@ -17,7 +17,13 @@ class Server:
 		self._distribute_client_params(gamma, beta)
 		self.weights = self._request_client_weights()
 
+		self.beta_se = None 
 		self.loss_gamma, self.loss_beta = [], []
+
+	@property 
+	def z_statistic(self):
+		# return each beta coefficient divided by its standard error 
+		return self.beta.squeeze() / self.beta_se
 
 	def _distribute_client_params(self, gamma=None, beta=None):
 
@@ -37,6 +43,16 @@ class Server:
 
 		for client in self.clients:
 			client.update_splines()
+
+	def fit_standard_error(self):
+
+		hessian_diag = 0
+		for client in self.clients:
+
+			# not a weighted sum here 
+			hessian_diag += client.beta_hessian_diagonal()
+
+		self.beta_se = 1 / np.sqrt(hessian_diag)
 
 	def fit_gamma_gradients(self):
 

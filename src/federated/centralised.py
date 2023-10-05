@@ -5,6 +5,7 @@ import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 
 from splines import NaturalCubicSpline, knots
+from optimisation import beta_hessian
 
 
 def centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init, knots_x, knots_y,
@@ -28,6 +29,9 @@ def centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init, kno
 	dS = dZ @ gamma[1:]
 
 	beta, loss_beta = fit_beta(beta_init, X, S, dS, delta, global_epochs, learning_rate)
+
+	hessian_diag = np.diag(beta_hessian(beta, X, S, dS, delta).numpy().squeeze())
+	beta_se = 1 / np.sqrt(hessian_diag)
 
 	return gamma, beta, loss_gamma, loss_beta
 

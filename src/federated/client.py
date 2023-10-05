@@ -5,7 +5,7 @@ import tensorflow as tf
 #from sklearn.preprocessing import StandardScaler
 
 from splines import NaturalCubicSpline, knots
-from optimisation import gamma_gradients_step, beta_gradients_step
+from optimisation import gamma_gradients_step, beta_gradients_step, beta_hessian
 
 
 def create_client(X, delta, logtime, n_epochs, learning_rate, knots_x, knots_y, n_knots=6, seed=42):
@@ -51,12 +51,7 @@ class Client:
 
 	@property
 	def n_samples(self):
-		return self.X.shape[0 ]
-
-	@property 
-	def z_statistic(self):
-		# return each beta coefficient divided by its standard error 
-		return self.beta / self.beta_se
+		return self.X.shape[0]
 
 	def gamma_step(self):
 
@@ -69,7 +64,7 @@ class Client:
 		gradients, loss_beta = beta_gradients_step(self.beta, self.X, self.S, self.dS, self.delta,
 										  			   self.learning_rate, self.n_epochs)
 		return gradients, loss_beta
-		
+
 	def update_weights(self, gamma=None, beta=None):
 
 		if gamma is not None:
@@ -77,6 +72,13 @@ class Client:
 	
 		if beta is not None:
 			self.beta = beta 
+
+	def beta_hessian_diagonal(self):
+
+		# output is (p x p) matrix
+		hessian_beta = beta_hessian(self.beta, self.X, self.S, self.dS, self.delta)
+		# diagonal elements are the beta variances 
+		return np.diag(hessian_beta.numpy().squeeze())
 
 	def update_splines(self):
 

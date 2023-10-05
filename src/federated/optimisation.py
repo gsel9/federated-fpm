@@ -37,14 +37,13 @@ def beta_gradients_step(beta_init, X, S, dS, delta, learning_rate, n_epochs):
 	    return -1.0 * tf.reduce_sum(log_likelihood, axis=0)
 
 	beta = tf.Variable(beta_init.copy(), dtype=tf.float32)
-	beta_init = tf.Variable(beta_init.copy(), dtype=tf.float32)
 
 	X = tf.cast(X, dtype=tf.float32)
 	S = tf.cast(S, dtype=tf.float32)
 	dS = tf.cast(dS, dtype=tf.float32)
 	delta = tf.cast(delta, dtype=tf.float32)
 
-	optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+	#optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
 	loss_beta = []
 	for _ in range(n_epochs):
@@ -58,3 +57,31 @@ def beta_gradients_step(beta_init, X, S, dS, delta, learning_rate, n_epochs):
 		#loss_beta.append(np.mean(_loss_beta().numpy()))
 
 	#return optimizer.compute_gradients(_loss_beta, [beta_init])[0][1]
+
+
+def beta_hessian(beta, X, S, dS, delta):
+	# stackoverflow: hessian matrix of a keras model with tf.hessians
+
+	def _loss_beta():
+		
+	    nu = S + tf.matmul(X, beta)
+	    log_likelihood = delta * (tf.math.log(dS) + nu) - tf.exp(nu)
+	    return -1.0 * tf.reduce_sum(log_likelihood, axis=0)
+	
+	beta = tf.Variable(beta, dtype=tf.float32)
+	
+	X = tf.cast(X, dtype=tf.float32)
+	S = tf.cast(S, dtype=tf.float32)
+	dS = tf.cast(dS, dtype=tf.float32)
+	delta = tf.cast(delta, dtype=tf.float32)
+
+	with tf.GradientTape(persistent=True) as tape_outer:
+		tape_outer.watch(beta)
+
+		with tf.GradientTape() as tape_inner:
+			tape_inner.watch(beta)
+
+			loss = _loss_beta()
+
+		gradient = tape_inner.gradient(loss, beta)
+	return tape_outer.jacobian(gradient, beta)

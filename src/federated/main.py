@@ -64,7 +64,7 @@ def main():
 	# - assuming iid data and shared knot statistics the federated flexible parametric models equals 
 	#   the centralised model 
 	# - extensions baseline hazard models 
-	#	- basic polynomial regression
+	#	- smoothing splines
 	#	- kernel smoother (local polynomial regression)
 	# - extensions federated analytics 
 	#	- standard error, z-statistics and p-values 
@@ -73,6 +73,15 @@ def main():
 	#   - local iterations to boost optimisation
 	#	- privacy 
 
+	# READING LIST
+	# - https://sites.stat.washington.edu/courses/stat527/s14/slides/splines-contd-kernels-intro.pdf
+	# - https://sites.stat.washington.edu/courses/stat527/s13/slides/splines-kernels-annotated.pdf
+	# - https://github.com/madrury/basis-expansions/blob/master/basis_expansions/basis_expansions.py#L482
+
+	# standard error 
+	# https://stats.stackexchange.com/questions/68080/basic-question-about-fisher-information-matrix-and-relationship-to-hessian-and-s
+	# https://stackoverflow.com/questions/67940697/hessian-matrix-of-a-keras-model-with-tf-hessians
+	
 	n_clients = 3
 
 	order = 1
@@ -82,7 +91,7 @@ def main():
 
 	learning_rate = 0.05 
 	local_epochs = 1
-	global_epochs = 50  
+	global_epochs = 20  
 
 	X, y, delta, logtime = data()
 
@@ -106,6 +115,9 @@ def main():
 	server.request_spline_update()
 	server.fit_beta_gradients()
 	
+	server.fit_standard_error()
+	print(server.z_statistic)
+
 	gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init, knots_x, knots_y,
 															   learning_rate, global_epochs, order, intercept)
 	
@@ -115,11 +127,11 @@ def main():
 	plot_coefficients(server.gamma, "figures/coefs_gamma.pdf", ref_coefs=gamma, title="coefs gamma")
 	plot_coefficients(server.beta, "figures/coefs_beta.pdf", ref_coefs=beta, title="coefs beta")
 
-	#np.save("./results/beta_central.npy", beta)
-	#np.save("./results/gamma_central.npy", gamma)
+	np.save("./results/beta_central.npy", beta)
+	np.save("./results/gamma_central.npy", gamma)
 
-	#beta = np.load("./results/beta_central.npy")
-	#gamma = np.load("./results/gamma_central.npy")
+	beta = np.load("./results/beta_central.npy")
+	gamma = np.load("./results/gamma_central.npy")
 
 	print("gamma diff:", np.linalg.norm(server.gamma - gamma))
 	print("beta diff:", np.linalg.norm(server.beta - beta))
