@@ -59,19 +59,10 @@ def initialize_parameters(size_beta, size_gamma, seed=42):
 
 
 def main():
-	# NOTE:
-	# - goal: assess if federated flexible parametric models can be used with FL 
-	# - assuming iid data and shared knot statistics the federated flexible parametric models equals 
-	#   the centralised model 
-	# - extensions baseline hazard models 
-	#	- smoothing splines
-	#	- kernel smoother (local polynomial regression)
-	# - extensions federated analytics 
-	#	- standard error, z-statistics and p-values 
-	# - extenstions realistic federated settings 
-	#	- non-iid data (data shifts, VI days)
-	#   - local iterations to boost optimisation
-	#	- privacy 
+
+	# TODO: 
+	# - Try non-iid data. since summing gradients, data distributions should not have anything to say!!!!
+	# - Try alternating gradient descent on gamma and beta 
 
 	# READING LIST
 	# - https://sites.stat.washington.edu/courses/stat527/s14/slides/splines-contd-kernels-intro.pdf
@@ -91,7 +82,7 @@ def main():
 
 	learning_rate = 0.05 
 	local_epochs = 1
-	global_epochs = 20  
+	global_epochs = 100 #100  
 
 	X, y, delta, logtime = data()
 
@@ -110,22 +101,25 @@ def main():
 		print(f"Created client: {i+1}")
 	
 	server = Server(clients, global_epochs, learning_rate, gamma_init, beta_init)
-
 	server.fit_gamma_gradients()
 	server.request_spline_update()
 	server.fit_beta_gradients()
-	
+	# needed to compute z-statistics 
 	server.fit_standard_error()
-	print(server.z_statistic)
 
-	gamma, beta, loss_gamma, loss_beta = centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init, knots_x, knots_y,
+	# WIP
+	#server.fit_gradients_alternating()
+
+	gamma, beta, loss_gamma, loss_beta, beta_se, z_statistic = centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init, knots_x, knots_y,
 															   learning_rate, global_epochs, order, intercept)
 	
 	plot_loss(server.loss_gamma, "figures/loss_gamma.pdf", ref_loss=loss_gamma, title="loss gamma")
 	plot_loss(server.loss_beta, "figures/loss_beta.pdf", ref_loss=loss_beta, title="loss beta")
 
-	plot_coefficients(server.gamma, "figures/coefs_gamma.pdf", ref_coefs=gamma, title="coefs gamma")
-	plot_coefficients(server.beta, "figures/coefs_beta.pdf", ref_coefs=beta, title="coefs beta")
+	plot_coefficients(server.gamma, "figures/coefs_gamma.pdf", ref_coefs=gamma, 
+					  title=f"coefs gamma (diff={np.linalg.norm(server.gamma - gamma)})", )
+	plot_coefficients(server.beta, "figures/coefs_beta.pdf", ref_coefs=beta, 
+					  title=f"coefs beta (diff={np.linalg.norm(server.beta - beta)}")
 
 	np.save("./results/beta_central.npy", beta)
 	np.save("./results/gamma_central.npy", gamma)
@@ -133,8 +127,10 @@ def main():
 	beta = np.load("./results/beta_central.npy")
 	gamma = np.load("./results/gamma_central.npy")
 
-	print("gamma diff:", np.linalg.norm(server.gamma - gamma))
-	print("beta diff:", np.linalg.norm(server.beta - beta))
+	print("gamma diff:", np.linalg.norm(server.gamma - gamma)) 
+	print("beta diff:", np.linalg.norm(server.beta - beta)) 
+	print("se diff:", np.linalg.norm(server.beta_se - beta_se)) 
+	print("z diff:", np.linalg.norm(server.z_statistic - z_statistic)) 
 
 
 if __name__ == "__main__":

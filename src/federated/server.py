@@ -57,9 +57,8 @@ class Server:
 	def fit_gamma_gradients(self):
 
 		optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
-
 		gamma_variable = tf.Variable(self.gamma, dtype=tf.float32)
-		
+
 		for epoch in range(self.epochs):
 
 			gradients, losses = 0, 0
@@ -67,7 +66,8 @@ class Server:
 
 				gradient, loss = client.gamma_step()
 				
-				gradients += self.weights[i] * gradient
+				gradients += gradient
+				#gradients += self.weights[i] * gradient
 				losses += self.weights[i] * loss
 			
 			optimizer.apply_gradients([(gradients, gamma_variable)])
@@ -80,7 +80,6 @@ class Server:
 	def fit_beta_gradients(self):
 		
 		optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
-
 		beta_variable = tf.Variable(self.beta, dtype=tf.float32)
 
 		for epoch in range(self.epochs):
@@ -89,8 +88,9 @@ class Server:
 			for i, client in enumerate(self.clients):
 
 				gradient, loss = client.beta_step()
-				
-				gradients += self.weights[i] * gradient
+
+				gradients += gradient
+				#gradients += self.weights[i] * gradient
 				losses += self.weights[i] * loss
 
 			optimizer.apply_gradients([(gradients, beta_variable)])
@@ -99,3 +99,17 @@ class Server:
 			self._distribute_client_params(beta=beta_variable.numpy())
 
 		self.beta = beta_variable.numpy() 
+
+	def fit_gradients_alternating(self):
+		
+		for epoch in range(self.epochs):
+
+			gradients, losses = 0, 0
+			for i, client in enumerate(self.clients):
+				gradient, loss = client.gamma_steps()
+
+			self.request_spline_update()
+
+			gradients, losses = 0, 0
+			for i, client in enumerate(self.clients):
+				gradient, loss = client.beta_steps()

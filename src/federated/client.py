@@ -5,7 +5,8 @@ import tensorflow as tf
 #from sklearn.preprocessing import StandardScaler
 
 from splines import NaturalCubicSpline, knots
-from optimisation import gamma_gradients_step, beta_gradients_step, beta_hessian
+from optimisation import (gamma_gradients_step, beta_gradients_step, beta_hessian,
+						  gamma_gradients_steps, beta_gradients_steps)
 
 
 def create_client(X, delta, logtime, n_epochs, learning_rate, knots_x, knots_y, n_knots=6, seed=42):
@@ -63,6 +64,18 @@ class Client:
 
 		gradients, loss_beta = beta_gradients_step(self.beta, self.X, self.S, self.dS, self.delta,
 										  			   self.learning_rate, self.n_epochs)
+		return gradients, loss_beta
+
+	def gamma_steps(self):
+
+		gradients, loss_gamma = gamma_gradients_steps(self.gamma, self.Z, self.knots_y, 
+		  		 									  self.learning_rate, self.n_epochs)
+		return gradients, loss_gamma
+
+	def beta_steps(self):
+
+		gradients, loss_beta = beta_gradients_steps(self.beta, self.X, self.S, self.dS, self.delta,
+										  			self.learning_rate, self.n_epochs)
 		return gradients, loss_beta
 
 	def update_weights(self, gamma=None, beta=None):

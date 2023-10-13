@@ -33,7 +33,7 @@ def centralised_benchmark(X, delta, logtime, n_knots, gamma_init, beta_init, kno
 	hessian_diag = np.diag(beta_hessian(beta, X, S, dS, delta).numpy().squeeze())
 	beta_se = 1 / np.sqrt(hessian_diag)
 
-	return gamma, beta, loss_gamma, loss_beta
+	return gamma, beta, loss_gamma, loss_beta, beta_se, beta.squeeze() / beta_se
 
 
 def fit_gamma(gamma, Z, knots_y, epochs, learning_rate, order=1, intercept=True):
