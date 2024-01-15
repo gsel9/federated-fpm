@@ -1,0 +1,10 @@
+README.md
+setup.cfg
+setup.py
+src/fed_fpm/main.py
+src/fed_fpm.egg-info/PKG-INFO
+src/fed_fpm.egg-info/SOURCES.txt
+src/fed_fpm.egg-info/dependency_links.txt
+src/fed_fpm.egg-info/not-zip-safe
+src/fed_fpm.egg-info/requires.txt
+src/fed_fpm.egg-info/top_level.txt
