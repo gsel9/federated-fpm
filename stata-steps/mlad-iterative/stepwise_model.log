@@ -1,0 +1,40 @@
+
+. insheet using "data.csv", comma clear
+(4 vars, 10,000 obs)
+
+. 
+.      // declare the data in memory to be survival data
+.      stset t, failure(d=1)
+
+Survival-time data settings
+
+         Failure event: d==1
+Observed time interval: (0, t]
+     Exit on or before: failure
+
+--------------------------------------------------------------------------
+     10,000  total observations
+          0  exclusions
+--------------------------------------------------------------------------
+     10,000  observations remaining, representing
+      5,182  failures in single-record/single-failure data
+  33,954.46  total analysis time at risk and under observation
+                                                At risk from t =         0
+                                     Earliest observed entry t =         0
+                                          Last observed exit t =         5
+
+. 
+.      // fixing the number of steps in the optimizer to a singe 
+.      // iteration 
+.      set maxiter 0
+
+.      
+.      gen beta0 = uniform()
+
+. 
+.      mlad (ln_lambda: = x1 x2)   ///
+>           (ln_gamma: ),          /// 
+>            init(beta0)                ///
+>            othervars(_t _d)      ///
+>            othervarnames(t d)    ///
+>            llfile(weibull_ll)  
