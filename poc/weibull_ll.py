@@ -5,7 +5,7 @@ import mladutil as mu
 
 
 # NOTE: the fuction name must always be `python_ll`
-def python_ll(beta, X, wt, M):
+def logl(beta, X, wt, M):
     """TODO
 
     Args:
