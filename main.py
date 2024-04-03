@@ -1,17 +1,19 @@
 """ To recap, our end-goal is to make Python-based FL frameworks 
-available to Stata users. A first use-case is to try estimating 
-a Stata model using a framework called Vantage6, developed by 
-Dutch cancer registry. To figure out how we can do this, I want 
-to prototype a solution to outline the relevant syntax.
+available to Stata users. 
+
+A first use-case is to estimate a Stata model using a framework 
+called Vantage6. To figure out how we can approach this, I want 
+to prototype a solution containing the relevant syntax.
 
 Here I sketch the classical approach to FL. I figured it makes 
 a more realistic illustration of the order of events by using 
-python objects. The questions is where and how we can integrate 
-Stata estiamtion procedures and make coefficient estimates 
-available to Stata post-estimation procedures.
+python objects (hope you are familiar with that). 
+
+Questions are where in this process and how (syntax) we can integrate 
+Stata estimation procedures (ie, call Stata ML optimizer) and make 
+the coefficients available to post-estimation procedures.
 """
 import numpy as np 
-import pandas as pd 
 
 
 class Server:
@@ -19,8 +21,8 @@ class Server:
 
     In the classical setting, the role of the server is 
     (1) to initialize and distribute model coefficients to 
-    the clinets; (2) in an iterative process, aggregate coefficient 
-    estimates recieved from each client and re-distribute.
+    the clients; (2) aggregate coefficient estimates recieved 
+    from each client and re-distribute in an iterative process.
     """
     def __init__(self, p):
         # number of covaraites in each client's data 
@@ -30,17 +32,17 @@ class Server:
         self.client_coefs = []
                 
     def init_coefs(self):
-        "initalialize coefficient estimates"
+        " Initalialize coefficient estimates"
         self.coefs = np.random.random(self.p)
 
     def aggregate_client_coefs(self, client_coefs):
         """ Aggregate coefficient estimates by averaging 
-        over each client. 
+        over the clients. 
         """ 
         self.coefs = np.mean(client_coefs, axis=1)
         
     def append_coefs(self, coefs):
-        """ Recieve coefficients from a client."""
+        """ Recieve coefficients from a single client."""
         self.client_coefs.append(coefs)
     
     def distribute_coefs(self, clients):
@@ -52,14 +54,15 @@ class Server:
     
     
 class Client:
-    """ Representation of a client (the individual participants 
-    in the FL experiment). 
+    """ Representation of a client. 
     
-    The client's role is in each server iteration to use local data 
-    to update the coefficient estimate from the server. Several 
-    updates can sometimes be done locally.
+    The client role is to iteratively (1) recieve a  
+    coefficients estimate from the server; (2) update the 
+    coefficients though optimization on local data; (3) 
+    return the updated coefficients to the server. 
+    
+    A client can sometimes run multiple steps of optimization.
     """
-    
     def __init__(
         self, coefs, optimizer=None, n_local_rounds=5
     ):
@@ -68,7 +71,6 @@ class Client:
         self.n_local_rounds = n_local_rounds
         
     def update_coefs(self):
-        
         # load local data 
         data = self.load_data()
         
@@ -95,23 +97,21 @@ def main():
     server.init_coefs()
     
     # number of iterations at the server 
-    n_server_rounds = 10
-        
+    n_server_rounds = ...
     for _ in range(n_server_rounds):
         
-        # in each round, repeat the steps for each client 
+        # in each server round, the clients repeat the steps 
         for client in clients:        
 
             # update coefficients on client data 
             client.update_coefs()
-
             # return updated coefficients to server 
             client.return_coefs(server)
         
-        # aggregate coefficients over clients 
+        # server aggregates coefficients over clients 
         server.aggregate_client_coefs()
 
-        # send aggregated estimates back to clients  
+        # server sends aggregated estimates back to clients  
         server.distribute_coefs(clients)
                 
     
