@@ -1,7 +1,7 @@
 clear all
 cd ${DRIVE}/GitHub/federated-fpm/Examples/logistic
 
-log using logistic_example.log, text
+log using logistic_example.log, text replace
 // logistic regression low birth weight exmaple
 set seed 3425
 webuse lbw

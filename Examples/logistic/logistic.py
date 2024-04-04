@@ -3,14 +3,14 @@ import mladutil as mu
 
 # Main file - sends parameters to each center
 def python_ll(beta,X,wt,M):
-  # should just send betas, but here data for each center is store in M
+  # should just send betas, but here data for each center is stored in M
   ll1 = GetCenter1(beta,M)
   ll2 = GetCenter2(beta,M)
   ll3 = GetCenter3(beta,M)
   return(ll1+ll2+ll3)
 
-# each center would have identical function to return log likelhood contribution
-# each using the data sitting at that center and the shared betas.  
+# each center would have an identical function to return log likelhood contribution
+# each using the data stored at that center and the shared betas.  
   
 # center 1 uses current betas to return sum of log likelihood  
 def GetCenter1(beta,M):  
