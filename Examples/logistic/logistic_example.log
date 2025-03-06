@@ -1,8 +1,8 @@
------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------
       name:  <unnamed>
-       log:  C:\GitHub\federated-fpm\Examples\logistic\logistic_example.log
+       log:  /Users/sela/Desktop/federated-fpm/Examples/logistic/logistic_example.log
   log type:  text
- opened on:   4 Apr 2024, 15:14:11
+ opened on:  12 Apr 2024, 16:13:47
 
 . // logistic regression low birth weight exmaple
 . set seed 3425
@@ -62,67 +62,8 @@ Log likelihood = -113.2273                              Pseudo R2     = 0.0350
 >       pysetup(setup)                          ///
 >       othervars(low) othervarnames(y)         ///
 >       nojit
+Python module jax need to be installed.
+r(198);
 
-Initial:      Log likelihood = -131.00482
-Alternative:  Log likelihood = -119.10055
-Rescale:      Log likelihood = -118.20646
-Iteration 0:  Log likelihood = -118.20646  
-Iteration 1:  Log likelihood = -113.30244  
-Iteration 2:  Log likelihood =  -113.2273  
-Iteration 3:  Log likelihood =  -113.2273  
-
-. ml display
-
-                                                        Number of obs =    189
-                                                        Wald chi2(4)  =   7.83
-Log likelihood = -113.2273                              Prob > chi2   = 0.0980
-
-------------------------------------------------------------------------------
-         low | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
--------------+----------------------------------------------------------------
-         age |  -.0495248    .032056    -1.54   0.122    -.1123535    .0133039
-       smoke |   .6980078   .3235882     2.16   0.031     .0637866    1.332229
-     center2 |  -.1657076   .4009081    -0.41   0.679    -.9514729    .6200578
-     center3 |   .1860336   .3930343     0.47   0.636    -.5842995    .9563668
-       _cons |   .0438217   .7882377     0.06   0.956    -1.501096    1.588739
-------------------------------------------------------------------------------
-
-. estimates store mlad 
-
-. 
-. // compare estimates and standard errors from Stata and Python
-. estimates table logit mlad, stats(ll) se eq(1)
-
-----------------------------------------
-    Variable |   logit         mlad     
--------------+--------------------------
-         age | -.04952482   -.04952484  
-             |  .03205605    .03205605  
-       smoke |  .69800766    .69800777  
-             |  .32358817    .32358817  
-     center2 | -.16570756   -.16570759  
-             |  .40090804    .40090805  
-     center3 |   .1860336    .18603361  
-             |  .39303433    .39303434  
-       _cons |  .04382134    .04382174  
-             |  .78823772    .78823775  
--------------+--------------------------
-          ll |  -113.2273    -113.2273  
-----------------------------------------
-                            Legend: b/se
-
-. 
-. // some useful mlad options
-. //   -- nojit - do not jit compile - get better error messages when developing
-. //   -- mlmethod(d0) - Python just gives likelihood will use numerical derivatives
-. //   -- mlmethod(d1) - Python just gives likelihood and gradient 
-. //                     Hessian calculated numerically
-. //   -- mlmethod(d1debug) gradient - compares gradient from Python with numeric derivatives
-. //   -- mlmethod(d2debug) hessian  - compares hessian from Python with numeric derivatives
-. //   -- most ml options will work, e.g for initial values / tolerance etc
-. log close
-      name:  <unnamed>
-       log:  C:\GitHub\federated-fpm\Examples\logistic\logistic_example.log
-  log type:  text
- closed on:   4 Apr 2024, 15:14:19
------------------------------------------------------------------------------------------------------------------------------------------------
+end of do-file
+r(198);

@@ -1,5 +1,8 @@
+// configs 
 clear all
-cd ${DRIVE}/GitHub/federated-fpm/Examples/logistic
+//cd ${DRIVE}/GitHub/federated-fpm/Examples/logistic
+set python_exec /Users/sela/anaconda3/bin/python, permanently
+set python_userpath /Users/sela/anaconda3/lib/python3.11/site-packages
 
 log using logistic_example.log, text replace
 // logistic regression low birth weight exmaple
