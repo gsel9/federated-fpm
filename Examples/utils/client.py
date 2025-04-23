@@ -1,97 +1,80 @@
-from sksurv.metrics import concordance_index_censored
+import numpy as np 
+from sksurv.util import Surv
 
 # Local imports 
-from utils.data import feature_scaling, init_params_random, init_params_cox
-from utils.splines import spline_design_matrix, spline_derivative_design_matrix
-
+from .model import Model 
+from .splines import spline_design_matrix
+from .data import (
+    feature_scaling, train_test_splitting, init_knots, init_beta, init_gamma
+)
 
 
 class Client:
 
-    def __init__(self, cid, data, times, delta):
-
-        self.cid = cid
+    def __init__(self, data, n_knots, n_epochs, event_col, duration_col):
         self.data = data 
-        self.times = times
-        self.delta = delta 
+        self.n_knots = n_knots
+        self.n_epochs = n_epochs
+        self.event_col = event_col
+        self.duration_col = duration_col 
 
-    def set_params(self, beta, gamma):
-        self.beta = beta
-        self.gamma = gamma 
-
-    def _train_test_split(self, test_size=0.25):
-
-        # Train-test splitting 
-        train_idx, test_idx = train_test_split(
-            np.arange(self.data.shape[0]), 
-            test_size=test_size, 
-            random_state=42, 
-            stratify=self.delta.squeeze().astype(int)
-        )
-        return train_idx, test_idx
-
-    def train_test_split(self):
-
-        # Create training and test splits 
-        train_idx, test_idx = self._train_test_split()
-
-        # Cast to <numpy>
-        X = self.data.to_numpy().copy()
+        # Client model  
+        self.model = None 
         
-        # Split data
-        self.d_train, self.d_test = self.delta[train_idx], self.delta[test_idx]
-        self.t_train, self.t_test = self.times[train_idx], self.times[test_idx]
-
+        # Controls parameter initialization         
+        self._is_first_call = True 
+        
+    def preprocess_data(self):
+        
+        # Indices for training and test sets
+        train_idx, test_idx = train_test_splitting(
+            np.arange(self.data.shape[0]),
+            test_size=0.25, 
+            stratify=self.data[self.event_col].squeeze().astype(int)
+        )
+        # Cast feature matrix to numpy 
+        X = self.data.drop(columns=[self.event_col, self.duration_col]).to_numpy()
+        
         # Scale training and test data
         self.X_train, self.X_test = feature_scaling(X[train_idx], X[test_idx])
-
-    def initialize_params(self, knots):
         
-        # Spline design matrices of log-time 
-        self.D, self.dDdt = create_splines(log_t=np.log(self.t_train.squeeze()), knots=knots)
-
-        # Initialize model parameters 
-        self.beta, self.gamma = init_beta_gamma(self.D, self.X_train, y_train)
-
-    def loss(self):
-        phi = self.D @ self.gamma.T + self.X_train @ self.beta.T
-    
-        uncensored = np.exp(phi - np.exp(phi)) * (self.dDdt @ self.gamma.T)
-        censored = np.exp(-1.0 * np.exp(phi))
-        
-        return float(np.sum(self.d_train * uncensored + (1 - self.d_train) * censored, axis=0))
-
-    def gradient_gamma(self):
-    
-        phi = self.D @ self.gamma.T + self.X_train @ self.beta.T
-        dsdt = self.dDdt @ self.gamma.T
-        
-        return (np.exp(phi) - self.d_train).T @ self.D - (self.d_train / dsdt).T @ self.dDdt
-
-    def gradient_beta(self):
-        phi = self.D @ self.gamma.T + self.X_train @ self.beta.T
-        return (np.exp(phi) - self.d_train).T @ self.X_train
-
-    def train_steps(self, local_steps=1, learning_rate=0.01):
-        
-        for i in range(local_steps):
-            # Gradient descent steps 
-            self.beta -= learning_rate * self.gradient_beta()
-            self.gamma -= learning_rate * self.gradient_gamma()
-
-    def c_score(self, beta=None):
-        
-        if beta is None:
-            beta = self.beta 
-    
-        train_score, _, _, _, _ = concordance_index_censored(
-            self.d_train.squeeze(), 
-            np.log(self.t_train.squeeze()), 
-            (self.X_train @ beta.T).squeeze()
+        # Create structured array
+        y = Surv.from_arrays(
+            event=self.data[self.event_col].to_numpy().squeeze(), 
+            time=self.data[self.duration_col].to_numpy().squeeze()
         )
-        test_score, _, _, _, _ = concordance_index_censored(
-            self.d_test.squeeze(), 
-            np.log(self.t_test.squeeze()), 
-            (self.X_test @ beta.T).squeeze()
+        # Split structured array
+        self.y_train = y[train_idx]
+        self.y_test = y[test_idx]
+        
+    def init_model(self):
+        # Unpack structured array 
+        event, duration = zip(*self.y_train)
+        
+        # Set knot locations 
+        knots = init_knots(duration, event, self.n_knots)
+        
+        # Create one spline equation per time point 
+        D = spline_design_matrix(np.log(duration), knots)
+        # Initialize gamma coefficients
+        gamma = init_gamma(D, duration)
+        # Initialize beta coefficients
+        beta = init_beta(self.X_train, self.y_train)
+        
+        # Initialize FPM   
+        self.model = Model(
+            epochs=self.n_epochs, knots=knots, learning_rate=0.01, alpha=10, l1_ratio=0
         )
-        return train_score, test_score
+        # Update model parameters 
+        self.model.set_params({"beta": beta, "gamma": gamma})
+            
+    def fit_model(self):
+        # Fit model 
+        self.model.fit(self.X_train, self.y_train)
+
+    def set_params(self, params: dict):
+        self.model.set_params(params)
+        
+    def get_params(self) -> dict:
+        return self.model.get_params()
+        
