@@ -1,4 +1,5 @@
 import numpy as np 
+from scipy.interpolate import BSpline
 
 
 def relu(x):
@@ -15,13 +16,13 @@ def spline_basis(x, k_j, k_min, k_max, derivative=False):
         term1 = relu(x - k_j) ** 2
         term2 = phi_j * relu(x - k_min) ** 2
         term3 = (1 - phi_j) * relu(x - k_max) ** 2
-        return 3 * (term1 - term2 - term3)
+        return 3 * (term1 - (term2 + term3))
 
     # Spline basis function 
     term1 = relu(x - k_j) ** 3
     term2 = phi_j * relu(x - k_min) ** 3
     term3 = (1 - phi_j) * relu(x - k_max) ** 3
-    return term1 - term2 - term3
+    return term1 - (term2 + term3)
 
 
 def spline_vector(ln_t, knots):
@@ -58,3 +59,46 @@ def spline_derivative_design_matrix(log_t, knots):
         dDdt.append(spline_derivative_vector(log_time, knots))
     # Cast to <numpy.ndarray>
     return np.array(dDdt)
+
+
+def bspline_design_matrix(log_t, knots, degree=3):
+    
+    # Padding boundary knots
+    t = np.concatenate((
+        [log_t.min()] * (degree + 1), knots[1:-1], [log_t.max()] * (degree + 1)
+    ))
+
+    n_bases = len(t) - (degree + 1)
+    design_matrix = np.zeros((len(log_t), n_bases))
+
+    for i in range(n_bases):
+        c = np.zeros(n_bases)
+        c[i] = 1
+        spline = BSpline(t, c, degree)
+        design_matrix[:, i] = spline(log_t)
+
+    design_matrix = np.array(design_matrix)
+    
+    return design_matrix
+    
+    
+def bspline_derivative_design_matrix(log_t, knots, degree=3):
+
+    # Padding boundary knots
+    t = np.concatenate((
+        [log_t.min()] * (degree + 1), knots[1:-1], [log_t.max()] * (degree + 1)
+    ))
+
+    n_bases = len(t) - (degree + 1)
+    deriv_matrix = np.zeros((len(log_t), n_bases))
+
+    for i in range(n_bases):
+        c = np.zeros(n_bases)
+        c[i] = 1
+        basis = BSpline(t, c, degree)
+        basis_deriv = basis.derivative()
+        deriv_matrix[:, i] = basis_deriv(log_t)
+
+    deriv_matrix = np.array(deriv_matrix)
+    
+    return deriv_matrix

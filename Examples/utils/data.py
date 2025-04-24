@@ -1,6 +1,7 @@
 import numpy as np 
 from scipy.linalg import lstsq
 
+from lifelines import CoxPHFitter
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -55,8 +56,40 @@ def init_beta(X, y):
     return beta[None, :]
 
 
+def _init_gamma(D, X, y):
+    # Fit a Cox PH model
+    cox = CoxPHSurvivalAnalysis(alpha=0.01, tol=1e-6)
+    cox.fit(X, y)
+
+    # Estimated cumulative hazard conditional on covarites
+    cumulative_hazards = cox.predict_cumulative_hazard_function(X, return_array=True)
+    # Average cumulative hazard for each subject over observed times
+    mean_hazard = np.clip(np.mean(cumulative_hazards, axis=1), 1e-16, 1e16)
+    # Fit linear regression to log cumulative hazard
+    gamma, _, _, _ = lstsq(D, np.log(mean_hazard))
+    # Expand with one dimension    
+    return gamma[None, :]
+
+
 def init_gamma(D, duration):
     # Solve least squares problem
     gamma = np.linalg.inv(D.T @ D) @ D.T @ np.log(duration)
     # Expand with one dimension    
     return gamma[None, :]
+
+
+def init_params(data, duration_col, event_col, n_knots):
+    
+    model = CoxPHFitter(
+        baseline_estimation_method="spline", 
+        n_baseline_knots=n_knots,
+        penalizer=0.1
+    )
+    model.fit(data, duration_col=duration_col, event_col=event_col)
+    
+    X = data.drop(columns=[event_col, duration_col])
+    beta = model.params_["beta_"][X.columns].values
+
+    gamma = model.params_[[f"phi{i + 1}_" for i in range(n_knots)]].values
+
+    return gamma[None, :], beta[None, :]

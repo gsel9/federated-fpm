@@ -3,7 +3,8 @@ from sksurv.util import Surv
 
 # Local imports 
 from .model import Model 
-from .splines import spline_design_matrix
+#from .splines import spline_design_matrix
+from .splines import bspline_design_matrix
 from .data import (
     feature_scaling, train_test_splitting, init_knots, init_beta, init_gamma
 )
@@ -55,15 +56,18 @@ class Client:
         knots = init_knots(duration, event, self.n_knots)
         
         # Create one spline equation per time point 
-        D = spline_design_matrix(np.log(duration), knots)
+        #D = spline_design_matrix(np.log(duration), knots)
+        D = bspline_design_matrix(np.log(duration), knots)
         # Initialize gamma coefficients
         gamma = init_gamma(D, duration)
+        #gamma = init_gamma(D, self.X_train, duration)
+        
         # Initialize beta coefficients
         beta = init_beta(self.X_train, self.y_train)
         
         # Initialize FPM   
         self.model = Model(
-            epochs=self.n_epochs, knots=knots, learning_rate=0.01, alpha=10, l1_ratio=0
+            epochs=self.n_epochs, knots=knots, learning_rate=0.01, l2_lambda=10
         )
         # Update model parameters 
         self.model.set_params({"beta": beta, "gamma": gamma})
@@ -77,4 +81,10 @@ class Client:
         
     def get_params(self) -> dict:
         return self.model.get_params()
+    
+    def risk_score(self, X):
+        return self.model.risk_score(X)
+    
+    def survival_curve(self, X, times):
+        return self.model.survival_curve(X, times)
         
