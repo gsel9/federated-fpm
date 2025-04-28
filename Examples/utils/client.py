@@ -30,7 +30,7 @@ class Client:
         # Indices for training and test sets
         train_idx, test_idx = train_test_splitting(
             np.arange(self.data.shape[0]),
-            test_size=0.25, 
+            test_size=0.2, 
             stratify=self.data[self.event_col].squeeze().astype(int)
         )
         # Cast feature matrix to numpy 
@@ -67,7 +67,7 @@ class Client:
         
         # Initialize FPM   
         self.model = Model(
-            epochs=self.n_epochs, knots=knots, learning_rate=0.01, l2_lambda=10
+            epochs=self.n_epochs, knots=knots, learning_rate=0.01, l2_lambda=0
         )
         # Update model parameters 
         self.model.set_params({"beta": beta, "gamma": gamma})
@@ -75,6 +75,12 @@ class Client:
     def fit_model(self):
         # Fit model 
         self.model.fit(self.X_train, self.y_train)
+        
+    def fit_model_fedadmm(self, z_beta, z_gamma, u_beta, u_gamma):
+        # Fit model 
+        self.model.fit_fedadmm(
+            self.X_train, self.y_train, z_beta, z_gamma, u_beta, u_gamma
+        )
 
     def set_params(self, params: dict):
         self.model.set_params(params)
