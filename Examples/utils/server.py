@@ -11,18 +11,6 @@ def server_update(all_betas, all_gammas):
     return z_beta, z_gamma
 
 
-def server_update_fedadmm(all_betas, all_gammas, u_betas, u_gammas):
-    # Average to get new z (global parameters)
-    z_beta = np.mean(all_betas, axis=0)
-    z_gamma = np.mean(all_gammas, axis=0)
-
-    # Update duals
-    new_u_betas = [u + (b - z_beta) for b, u in zip(all_betas, u_betas)]
-    new_u_gammas = [u + (g - z_gamma) for g, u in zip(all_gammas, u_gammas)]
-
-    return z_beta, z_gamma, new_u_betas, new_u_gammas
-
-
 class Server:
     
     def __init__(self, data, event_col, duration_col, n_clients, n_epochs):
@@ -69,46 +57,38 @@ class Server:
             
             all_beta, all_gamma, last_local_losses = [], [], []
             for client in self.participants:
-                client.fit_model()
+                client.fit_model(self.beta, self.gamma)
                 
                 all_beta.append(client.model.beta)
                 all_gamma.append(client.model.gamma)
                 last_local_losses.append(client.model.losses[-1])
                 
             losses.append(np.mean(last_local_losses))
-            
+            # Aggregate model parameters 
             z_beta, z_gamma = server_update(all_beta, all_gamma)
             
-            for client in self.participants:
-                # Distribute aggregated params 
-                client.set_params({"beta": z_beta, "gamma": z_gamma})
-                
         # Global parameter estimates 
         self.beta = z_beta
         self.gamma = z_gamma
     
-    # TODO QUESTION: Clients/models supposed to re-use local param estimates 
-    # when fitted, rather than re-init beta and gamma to agg params? 
     def fit_fedadmm(self):
         """
         """
         self.losses = []
         for _ in range(self.n_epochs):
             
-            local_betas, local_gammas, last_local_losses = [], [], []
+            all_beta, all_gamma, last_local_losses = [], [], []
             for i, client in enumerate(self.participants):
                 
-                client.fit_fed_admm(z_beta, z_gamma, u_betas[i], u_gammas[i])
+                client.fit_fed_admm(z_beta, z_gamma) 
 
-                local_betas.append(client.model.beta)
-                local_gammas.append(client.model.gamma)
-                last_local_losses.append(client.model.losses[-1])
+                all_beta.append(client.beta)
+                all_gamma.append(client.gamma)
+                last_local_losses.append(client.loss)
             
             self.losses.append(np.mean(last_local_losses))
-            
-            z_beta, z_gamma, u_betas, u_gammas = server_update_fedadmm(
-                local_betas, local_gammas, u_betas, u_gammas
-            )
+            # Aggregate model parameters 
+            z_beta, z_gamma = server_update(all_beta, all_gamma)
         
         # Global parameter estimates 
         self.beta = z_beta
