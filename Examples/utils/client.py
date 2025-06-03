@@ -67,7 +67,7 @@ class Client:
     
     # TODO: Upon param init, do one round of server update (after init model) to init 
     # all clients with the exact same starting beta and gamma 
-    def init_model(self, local_knots: bool, knots=None):
+    def init_model(self, local_knots: bool, knots=None, learning_rate=0.01):
         # Unpack structured array 
         event, duration = zip(*self.y_train)
         
@@ -87,7 +87,7 @@ class Client:
         self.model = Model(
             epochs=self.n_epochs, 
             knots=knots, 
-            learning_rate=0.01, 
+            learning_rate=learning_rate, 
             l2_lambda=1, 
             rho=self.rho
         )
