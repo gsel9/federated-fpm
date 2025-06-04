@@ -31,7 +31,6 @@ class Model:
         
         # Unpack structured array 
         event, duration = zip(*y)
-
         # Cast to ndarray 
         self.event = np.array(event).astype(int)
         self.duration = np.array(duration).astype(float)
@@ -45,10 +44,9 @@ class Model:
         # Optimization variables 
         beta = tf.Variable(self.beta, dtype=tf.float32)
         gamma = tf.Variable(self.gamma, dtype=tf.float32)
-        
         # For convergence  
-        beta_prev = self.beta.copy()
-        gamma_prev = self.gamma.copy()
+        beta_prev = np.zeros_like(self.beta) #.copy()
+        gamma_prev = np.zeros_like(self.gamma) #.copy()
         
         # Cast to TF 
         X = tf.cast(X, dtype=tf.float32)
@@ -106,8 +104,9 @@ class Model:
         self.gamma = gamma.numpy()
     
     @staticmethod
-    def has_converged(params, params_other, tol=1e-3):
-        return np.linalg.norm(params - params_other) / (np.linalg.norm(params) + 1e-12) <= tol
+    def has_converged(params, params_other, tol):
+        return np.linalg.norm(params - params_other) <= tol 
+        #return np.linalg.norm(params - params_other) / (np.linalg.norm(params) + 1e-12) <= tol
 
     def fit_fedadmm(
         self, X, y, z_beta, z_gamma, u_beta, u_gamma, tol: Optional[float] = None
