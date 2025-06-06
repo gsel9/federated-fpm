@@ -189,6 +189,10 @@ class Model:
         self.gamma = gamma.numpy()
         
     def gradients(self, X, y):
+        if self.epochs is not None:
+            # Run local iterations 
+            self.fit(X, y)
+            
         # Unpack structured array 
         event, duration = zip(*y)
 
@@ -227,7 +231,7 @@ class Model:
             reg_gamma = self.l2_lambda * tf.norm(gamma, ord=2)
 
             return nll + reg_gamma + reg_beta
-        
+            
         with tf.GradientTape() as tape:
             # Negative log-likelihood 
             loss_value = _neg_log_likelihood()
@@ -235,7 +239,7 @@ class Model:
         # Derive gradients
         gradients = tape.gradient(loss_value, [beta, gamma])
         return gradients
-        
+    
     def loss_fedadmm(self, X, y, z_beta, z_gamma, u_beta, u_gamma):
         
         # Unpack structured array 

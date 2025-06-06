@@ -98,11 +98,11 @@ class Client:
         self.u_beta = np.zeros_like(beta)
         self.u_gamma = np.zeros_like(gamma)
             
-    def fit_model(self, z_beta, z_gamma):
+    def fit_model(self, z_beta, z_gamma, tol=None):
         # Update model parameters 
         self.model.set_params({"beta": z_beta, "gamma": z_gamma})
         # Fit model 
-        self.model.fit(self.X_train, self.y_train)
+        self.model.fit(self.X_train, self.y_train, tol=tol)
         
     def fit_model_fedadmm(self, z_beta, z_gamma):
         # Fit model 
