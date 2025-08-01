@@ -67,7 +67,7 @@ class Client:
     
     # TODO: Upon param init, do one round of server update (after init model) to init 
     # all clients with the exact same starting beta and gamma 
-    def init_model(self, local_knots: bool, knots=None, learning_rate=0.01):
+    def init_model(self, local_knots: bool, knots=None, learning_rate=0.01, l2_lambda=1):
         # Unpack structured array 
         event, duration = zip(*self.y_train)
         
@@ -88,7 +88,7 @@ class Client:
             epochs=self.n_epochs, 
             knots=knots, 
             learning_rate=learning_rate, 
-            l2_lambda=1, 
+            l2_lambda=l2_lambda, 
             rho=self.rho
         )
         # Update model parameters 
@@ -103,7 +103,7 @@ class Client:
         self.model.set_params({"beta": z_beta, "gamma": z_gamma})
         # Fit model 
         self.model.fit(self.X_train, self.y_train, tol=tol)
-        
+    
     def fit_model_fedadmm(self, z_beta, z_gamma):
         # Fit model 
         self.model.fit_fedadmm(
@@ -116,6 +116,27 @@ class Client:
         # Single update step 
         grads = self.model.gradients(self.X_train, self.y_train)
         return grads
+    
+    def gradients_adjusted(self, z_beta, z_gamma, q_scale):
+        # Update model parameters 
+        self.model.set_params({"beta": z_beta, "gamma": z_gamma})
+        # Single update step 
+        grads = self.model.gradients_adjusted(self.X_train, self.y_train, q_scale)
+        return grads
+    
+    def gradients_constrained(self, z_beta, z_gamma):
+        # Update model parameters 
+        self.model.set_params({"beta": z_beta, "gamma": z_gamma})
+        # Single update step 
+        grads = self.model.gradients_constrained(self.X_train, self.y_train)
+        return grads
+    
+    def gradients_iterative(self, beta_global, gamma_global, epochs, tol=None):
+        # Update model parameters 
+        self.model.set_params({"beta": beta_global, "gamma": gamma_global})
+        # Fitting steps 
+        grads = self.model.gradients_iterative(self.X_train, self.y_train, epochs, tol=tol)
+        return grads 
     
     def gradients_fedadmm(self, z_beta, z_gamma):
         grads = self.model.gradients_fedadmm(
