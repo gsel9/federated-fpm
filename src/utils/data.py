@@ -1,7 +1,6 @@
 import numpy as np 
 from scipy.linalg import lstsq
 
-from lifelines import CoxPHFitter
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split

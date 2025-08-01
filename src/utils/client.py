@@ -65,8 +65,6 @@ class Client:
             # Split structured array
             self.y_train = y 
     
-    # TODO: Upon param init, do one round of server update (after init model) to init 
-    # all clients with the exact same starting beta and gamma 
     def init_model(self, local_knots: bool, knots=None, learning_rate=0.01, l2_lambda=1):
         # Unpack structured array 
         event, duration = zip(*self.y_train)
@@ -103,12 +101,6 @@ class Client:
         self.model.set_params({"beta": z_beta, "gamma": z_gamma})
         # Fit model 
         self.model.fit(self.X_train, self.y_train, tol=tol)
-    
-    def fit_model_fedadmm(self, z_beta, z_gamma):
-        # Fit model 
-        self.model.fit_fedadmm(
-            self.X_train, self.y_train, z_beta, z_gamma, self.u_beta, self.u_gamma
-        )
         
     def gradients(self, z_beta, z_gamma):
         # Update model parameters 
@@ -117,45 +109,8 @@ class Client:
         grads = self.model.gradients(self.X_train, self.y_train)
         return grads
     
-    def gradients_adjusted(self, z_beta, z_gamma, q_scale):
-        # Update model parameters 
-        self.model.set_params({"beta": z_beta, "gamma": z_gamma})
-        # Single update step 
-        grads = self.model.gradients_adjusted(self.X_train, self.y_train, q_scale)
-        return grads
-    
-    def gradients_constrained(self, z_beta, z_gamma):
-        # Update model parameters 
-        self.model.set_params({"beta": z_beta, "gamma": z_gamma})
-        # Single update step 
-        grads = self.model.gradients_constrained(self.X_train, self.y_train)
-        return grads
-    
-    def gradients_iterative(self, beta_global, gamma_global, epochs, tol=None):
-        # Update model parameters 
-        self.model.set_params({"beta": beta_global, "gamma": gamma_global})
-        # Fitting steps 
-        grads = self.model.gradients_iterative(self.X_train, self.y_train, epochs, tol=tol)
-        return grads 
-    
-    def gradients_fedadmm(self, z_beta, z_gamma):
-        grads = self.model.gradients_fedadmm(
-            self.X_train, self.y_train, z_beta, z_gamma, self.u_beta, self.u_gamma
-        )
-        return grads
-    
-    def model_loss_fedadmm(self, z_beta, z_gamma):
-        return self.model.loss_fedadmm(
-            self.X_train, self.y_train, z_beta, z_gamma, self.u_beta, self.u_gamma
-        )
-    
     def model_loss(self):
         return self.model.loss(self.X_train, self.y_train)
-        
-    def update_duals(self, z_beta, z_gamma):
-        # Update dual variables 
-        self.u_beta += self.rho * (self.model.beta - z_beta)
-        self.u_gamma += self.rho * (self.model.gamma - z_gamma)
         
     def set_params(self, params: dict):
         self.model.set_params(params)
@@ -163,9 +118,3 @@ class Client:
     def get_params(self) -> dict:
         return self.model.get_params()
     
-    def risk_score(self, X):
-        return self.model.risk_score(X)
-    
-    def survival_curve(self, X, times):
-        return self.model.survival_curve(X, times)
-        
